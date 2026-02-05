@@ -1,0 +1,101 @@
+#cloud-config
+
+# ============================================
+# HOMELAB SERVER CLOUD-INIT CONFIG
+# Docker + Portainer + NFS client + monitoring
+# Ideaal voor Home Assistant, n8n, etc.
+# ============================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - net-tools
+  - curl
+  - wget
+  - vim
+  - sudo
+  - openssh-server
+  - htop
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - nfs-common
+  - cifs-utils
+  - jq
+
+ssh_pwauth: false
+
+users:
+  - name: admin
+    groups: sudo, adm, docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - YOUR_SSH_PUBLIC_KEY_HERE
+
+runcmd:
+  # Basis services
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+  - systemctl enable ssh
+  - systemctl start ssh
+
+  # Docker installatie
+  - curl -fsSL https://get.docker.com | sh
+  - apt-get install -y docker-compose-plugin
+  - usermod -aG docker admin
+
+  # Docker directories
+  - mkdir -p /opt/docker/compose
+  - mkdir -p /opt/docker/data
+  - mkdir -p /opt/docker/backups
+  - chown -R admin:admin /opt/docker
+
+  # NFS mount directory (pas IP/pad aan naar je QNAP)
+  - mkdir -p /mnt/nas
+
+  # Portainer CE
+  - docker volume create portainer_data
+  - docker run -d --name portainer --restart=always -p 8000:8000 -p 9443:9443 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+
+  # Docker prune cronjob
+  - echo "0 3 * * 0 root docker system prune -af 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2"
+      }
+  - path: /opt/docker/compose/docker-compose.example.yaml
+    owner: admin:admin
+    content: |
+      # Voorbeeld docker-compose voor homelab services
+      # Pas aan naar behoefte en start met:
+      # cd /opt/docker/compose && docker compose up -d
+      version: '3.8'
+      services:
+        watchtower:
+          image: containrrr/watchtower
+          container_name: watchtower
+          restart: always
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+          environment:
+            - WATCHTOWER_CLEANUP=true
+            - WATCHTOWER_SCHEDULE=0 0 4 * * *
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+final_message: "Homelab server setup voltooid na $UPTIME seconden - Portainer op https://<IP>:9443"

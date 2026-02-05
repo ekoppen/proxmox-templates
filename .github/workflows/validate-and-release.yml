@@ -1,0 +1,151 @@
+name: Validate & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate configs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate YAML syntax
+        run: |
+          echo "=== Validating cloud-init YAML files ==="
+          ERRORS=0
+          for file in snippets/*.yaml; do
+            echo -n "  Checking $file... "
+            # Check YAML syntax met Python
+            if python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
+              echo "✓"
+            else
+              echo "✗ INVALID YAML"
+              ERRORS=$((ERRORS + 1))
+            fi
+
+            # Check dat het begint met #cloud-config
+            FIRST_LINE=$(head -1 "$file")
+            if [[ "$FIRST_LINE" != "#cloud-config" ]]; then
+              echo "    ⚠ Waarschuwing: eerste regel is niet '#cloud-config'"
+            fi
+          done
+
+          if [[ $ERRORS -gt 0 ]]; then
+            echo ""
+            echo "✗ $ERRORS bestanden met fouten"
+            exit 1
+          fi
+          echo ""
+          echo "✓ Alle YAML bestanden zijn geldig"
+
+      - name: Validate shell scripts
+        run: |
+          echo "=== Validating shell scripts ==="
+          ERRORS=0
+          for file in scripts/*.sh install.sh setup.sh; do
+            if [[ -f "$file" ]]; then
+              echo -n "  Checking $file... "
+              if bash -n "$file" 2>/dev/null; then
+                echo "✓"
+              else
+                echo "✗ SYNTAX ERROR"
+                bash -n "$file"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+          done
+
+          if [[ $ERRORS -gt 0 ]]; then
+            echo ""
+            echo "✗ $ERRORS scripts met fouten"
+            exit 1
+          fi
+          echo ""
+          echo "✓ Alle scripts zijn geldig"
+
+      - name: Security check - geen secrets in configs
+        run: |
+          echo "=== Security scan ==="
+          ISSUES=0
+
+          # Check voor hardcoded private keys
+          if grep -r "PRIVATE KEY" snippets/ scripts/ 2>/dev/null; then
+            echo "✗ PRIVATE KEY gevonden!"
+            ISSUES=$((ISSUES + 1))
+          fi
+
+          # Check voor wachtwoorden (behalve lock_passwd)
+          if grep -rP "password:\s+\S+" snippets/ 2>/dev/null | grep -v "lock_passwd"; then
+            echo "✗ Hardcoded wachtwoord gevonden!"
+            ISSUES=$((ISSUES + 1))
+          fi
+
+          # Check dat SSH key placeholder aanwezig is (niet een echte key)
+          for file in snippets/*.yaml; do
+            if grep -q "YOUR_SSH_PUBLIC_KEY_HERE" "$file"; then
+              echo "  ✓ $file: placeholder aanwezig"
+            elif grep -qP "ssh-(ed25519|rsa)\s+AAAA" "$file"; then
+              echo "  ⚠ $file: bevat wat lijkt op een echte SSH key"
+              echo "    Zorg dat je geen persoonlijke keys commit!"
+            fi
+          done
+
+          if [[ $ISSUES -gt 0 ]]; then
+            echo ""
+            echo "✗ $ISSUES security issues gevonden"
+            exit 1
+          fi
+          echo ""
+          echo "✓ Geen security issues gevonden"
+
+  release:
+    name: Create release
+    needs: validate
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create release archive
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          tar czf proxmox-templates-${VERSION}.tar.gz \
+            --exclude='.github' \
+            --exclude='.git' \
+            snippets/ scripts/ install.sh setup.sh README.md .gitignore
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Genereer changelog vanuit snippets
+          echo "## Beschikbare server types" > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          for file in snippets/*.yaml; do
+            TYPE=$(basename "$file" | sed 's/-cloud-config.yaml//')
+            PACKAGES=$(grep -A 100 "^packages:" "$file" | grep "^  - " | sed 's/  - //' | tr '\n' ', ' | sed 's/,$//')
+            echo "- **$TYPE**: $PACKAGES" >> RELEASE_NOTES.md
+          done
+          echo "" >> RELEASE_NOTES.md
+          echo "## Installatie" >> RELEASE_NOTES.md
+          echo '```bash' >> RELEASE_NOTES.md
+          echo "wget https://github.com/${{ github.repository }}/releases/download/${VERSION}/proxmox-templates-${VERSION}.tar.gz" >> RELEASE_NOTES.md
+          echo "tar xzf proxmox-templates-${VERSION}.tar.gz" >> RELEASE_NOTES.md
+          echo "bash setup.sh && bash install.sh" >> RELEASE_NOTES.md
+          echo '```' >> RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: proxmox-templates-*.tar.gz
+          generate_release_notes: true

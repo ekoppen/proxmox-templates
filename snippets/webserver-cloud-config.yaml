@@ -1,0 +1,96 @@
+#cloud-config
+
+# ============================================
+# WEBSERVER CLOUD-INIT CONFIG
+# Nginx + Certbot + UFW firewall
+# ============================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - net-tools
+  - curl
+  - wget
+  - vim
+  - sudo
+  - openssh-server
+  - htop
+  - unattended-upgrades
+  - nginx
+  - certbot
+  - python3-certbot-nginx
+  - ufw
+  - fail2ban
+
+ssh_pwauth: false
+
+users:
+  - name: admin
+    groups: sudo, adm, www-data
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - YOUR_SSH_PUBLIC_KEY_HERE
+
+runcmd:
+  # Basis services
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+  - systemctl enable ssh
+  - systemctl start ssh
+
+  # Nginx configureren en starten
+  - systemctl enable nginx
+  - systemctl start nginx
+
+  # UFW firewall
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow ssh
+  - ufw allow 'Nginx Full'
+  - echo "y" | ufw enable
+
+  # Fail2ban starten
+  - systemctl enable fail2ban
+  - systemctl start fail2ban
+
+  # Web directories aanmaken
+  - mkdir -p /var/www/sites
+  - chown -R admin:www-data /var/www/sites
+
+  # Certbot auto-renewal timer
+  - systemctl enable certbot.timer
+  - systemctl start certbot.timer
+
+write_files:
+  - path: /etc/nginx/sites-available/default
+    content: |
+      server {
+          listen 80 default_server;
+          listen [::]:80 default_server;
+          root /var/www/html;
+          index index.html;
+          server_name _;
+          location / {
+              try_files $uri $uri/ =404;
+          }
+      }
+  - path: /etc/fail2ban/jail.local
+    content: |
+      [sshd]
+      enabled = true
+      port = ssh
+      filter = sshd
+      maxretry = 5
+      bantime = 3600
+      [nginx-http-auth]
+      enabled = true
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+final_message: "Webserver setup voltooid na $UPTIME seconden"

@@ -1,0 +1,81 @@
+#cloud-config
+
+# ============================================
+# DOCKER SERVER CLOUD-INIT CONFIG
+# Docker + Docker Compose + Portainer
+# ============================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - net-tools
+  - curl
+  - wget
+  - vim
+  - sudo
+  - openssh-server
+  - htop
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+ssh_pwauth: false
+
+users:
+  - name: admin
+    groups: sudo, adm, docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - YOUR_SSH_PUBLIC_KEY_HERE
+
+runcmd:
+  # Basis services
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+  - systemctl enable ssh
+  - systemctl start ssh
+
+  # Docker installatie via officieel script
+  - curl -fsSL https://get.docker.com | sh
+
+  # Docker Compose plugin (zit tegenwoordig in Docker)
+  - apt-get install -y docker-compose-plugin
+
+  # Admin user toevoegen aan docker groep (voor het geval de groep nog niet bestond bij user aanmaak)
+  - usermod -aG docker admin
+
+  # Docker directories aanmaken
+  - mkdir -p /opt/docker/compose
+  - mkdir -p /opt/docker/data
+  - chown -R admin:admin /opt/docker
+
+  # Portainer CE deployen
+  - docker volume create portainer_data
+  - docker run -d --name portainer --restart=always -p 8000:8000 -p 9443:9443 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+
+  # Docker prune cronjob
+  - echo "0 3 * * 0 root docker system prune -af --volumes 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
+
+# Docker daemon configuratie
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2"
+      }
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+final_message: "Docker server setup voltooid na $UPTIME seconden - Portainer beschikbaar op https://<IP>:9443"
