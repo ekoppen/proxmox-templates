@@ -54,8 +54,9 @@ select_type() {
     for key in "${TYPE_ORDER[@]}"; do
         menu_items+=("$key" "${TYPE_LABELS[$key]} - ${TYPE_DESCRIPTIONS[$key]}")
     done
+    menu_items+=("haos" "Home Assistant OS - Smart home platform")
 
-    SELECTED_TYPE=$(menu_select "Server Type" "Kies een server type:" 20 "${menu_items[@]}") || return 1
+    SELECTED_TYPE=$(menu_select "Server Type" "Kies een server type:" 22 "${menu_items[@]}") || return 1
 }
 
 # ── Modus selectie ────────────────────────────
@@ -293,13 +294,92 @@ check_template() {
     return 0
 }
 
+# ── HAOS Aanmaak Flow ────────────────────────
+create_haos_flow() {
+    # VM Naam
+    VM_NAME=$(input_box "VM Naam" "Geef een naam voor de VM:" "haos-01") || return 1
+    [[ -z "$VM_NAME" ]] && { msg_info "Fout" "VM naam mag niet leeg zijn."; return 1; }
+
+    # VM ID
+    local suggested_id
+    suggested_id=$(next_vmid 300)
+    VM_ID=$(input_box "VM ID" "Geef een VM ID (nummer):" "$suggested_id") || return 1
+    [[ -z "$VM_ID" ]] && { msg_info "Fout" "VM ID mag niet leeg zijn."; return 1; }
+
+    if ! [[ "$VM_ID" =~ ^[0-9]+$ ]]; then
+        msg_info "Fout" "VM ID moet een nummer zijn."
+        return 1
+    fi
+
+    if qm status "$VM_ID" &>/dev/null 2>&1; then
+        msg_info "Fout" "VM ID $VM_ID is al in gebruik.\nKies een ander ID."
+        return 1
+    fi
+
+    # Versie (leeg = nieuwste)
+    HAOS_VERSION=$(input_box "HAOS Versie" "HAOS versie (leeg = nieuwste):" "") || return 1
+
+    # Bevestiging
+    local version_info="nieuwste (auto-detectie)"
+    [[ -n "$HAOS_VERSION" ]] && version_info="$HAOS_VERSION"
+
+    whiptail --backtitle "$BACKTITLE" --title "Bevestiging" --yesno \
+"Home Assistant OS VM wordt aangemaakt:
+
+  Naam:     $VM_NAME
+  ID:       $VM_ID
+  Versie:   $version_info
+  BIOS:     UEFI (OVMF)
+  Machine:  q35
+
+Dit is een appliance image (geen cloud-init).
+De VM wordt automatisch gestart.
+
+Doorgaan?" 18 60 || return 1
+
+    # Zoek create-haos-vm.sh
+    local haos_script
+    if [[ -f "$SCRIPT_DIR/create-haos-vm.sh" ]]; then
+        haos_script="$SCRIPT_DIR/create-haos-vm.sh"
+    elif [[ -f "/root/scripts/create-haos-vm.sh" ]]; then
+        haos_script="/root/scripts/create-haos-vm.sh"
+    else
+        log_error "create-haos-vm.sh niet gevonden"
+    fi
+
+    local cmd_args=("$VM_NAME" "$VM_ID" "--start")
+    [[ -n "$HAOS_VERSION" ]] && cmd_args+=("--version" "$HAOS_VERSION")
+
+    clear
+    show_banner
+    echo -e "${BLUE}Home Assistant OS VM aanmaken...${NC}"
+    echo ""
+
+    bash "$haos_script" "${cmd_args[@]}"
+    local exit_code=$?
+
+    echo ""
+    if [[ $exit_code -eq 0 ]]; then
+        echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    else
+        echo -e "${RED}Er is een fout opgetreden. Druk op Enter om terug te gaan...${NC}"
+    fi
+    read -r
+}
+
 # ── VM Aanmaak Flow ──────────────────────────
 create_vm_flow() {
-    # Template check
-    check_template || return
-
     # Stap 1: Type selecteren
     select_type || return
+
+    # HAOS heeft een aparte flow (geen cloud-init)
+    if [[ "$SELECTED_TYPE" == "haos" ]]; then
+        create_haos_flow
+        return
+    fi
+
+    # Template check (alleen voor cloud-init types)
+    check_template || return
 
     # Stap 2: Modus kiezen
     select_mode || return

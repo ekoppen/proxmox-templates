@@ -20,6 +20,9 @@ In ~60 seconds you'll have a fully configured server with your SSH key, auto-upd
 | `coolify` | Self-hosted PaaS (Heroku/Vercel alternative) | Dashboard: `http://<IP>:8000` |
 | `minio` | S3-compatible object storage | Console: `http://<IP>:9001` |
 | `appwrite` | Multi-project BaaS platform (Firebase/Supabase alternative) | Console: `http://<IP>` |
+| `haos` | Home Assistant OS - smart home platform (UEFI appliance*) | `http://<IP>:8123` |
+
+\* HAOS is an appliance image with its own OS — no cloud-init, no Debian. Uses a separate script (`create-haos-vm.sh`) with UEFI boot.
 
 ## Quick Start
 
@@ -71,6 +74,10 @@ create-vm.sh minio-01 150 minio --start
 # Appwrite
 create-vm.sh appwrite-01 160 appwrite --start
 
+# Home Assistant OS (separate script, UEFI appliance)
+create-haos-vm.sh haos 300 --start
+create-haos-vm.sh haos 300 --version 13.2 --cores 4 --memory 4096 --start
+
 # Full clone (independent of template)
 create-vm.sh prod-db 170 docker --full --cores 8 --memory 16384 --disk 100G
 
@@ -82,6 +89,7 @@ quick-supabase.sh supa-01 210 --start
 quick-coolify.sh cool-01 220 --start
 quick-minio.sh minio-01 230 --start
 quick-appwrite.sh appwrite-01 240 --start
+quick-haos.sh haos-01 300 --start
 
 # List all VMs
 list-vms.sh
@@ -124,6 +132,7 @@ proxmox-templates/
 └── scripts/                        # VM management → /root/scripts/
     ├── create-template.sh          #   Automatic Debian template creation
     ├── create-vm.sh                #   Create VM from template
+    ├── create-haos-vm.sh           #   Home Assistant OS VM (UEFI appliance)
     ├── menu.sh                     #   Interactive whiptail menu (pve-menu)
     ├── quick-create.sh             #   Shortcuts via symlinks
     ├── list-vms.sh                 #   VM overview
