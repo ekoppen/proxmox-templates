@@ -229,6 +229,19 @@ if [[ "$START_AFTER" == true ]]; then
     done
 fi
 
+# ── VM beschrijving instellen ─────────────────
+VM_NOTES="Type: $VM_TYPE | Snippet: $SNIPPET"
+if [[ -n "$IP" ]]; then
+    VM_NOTES="$VM_NOTES\nSSH: ssh admin@$IP"
+fi
+if [[ "$USE_REGISTRY" == true ]]; then
+    POSTINFO=$(get_postinfo "$VM_TYPE")
+    if [[ -n "$POSTINFO" && -n "$IP" ]]; then
+        VM_NOTES="$VM_NOTES\n${POSTINFO//<IP>/$IP}"
+    fi
+fi
+qm set $VM_ID --description "$(echo -e "$VM_NOTES")" 2>/dev/null || true
+
 # ── Samenvatting ──────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
