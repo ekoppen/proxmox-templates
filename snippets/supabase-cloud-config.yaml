@@ -138,6 +138,9 @@ runcmd:
   # Secrets genereren en .env aanmaken
   - bash /opt/supabase/generate-env.sh
 
+  # Studio beschikbaar maken op poort 3000
+  - [bash, -c, "cd /opt/supabase/docker && sed -i '/container_name: supabase-studio/a\\    ports:\\n      - 3000:3000' docker-compose.yml"]
+
   # Supabase starten
   - [bash, -c, "cd /opt/supabase/docker && docker compose pull && docker compose up -d"]
 
@@ -150,11 +153,14 @@ runcmd:
 
   # Bewaar credentials op leesbare plek
   - |
+    IP=$(hostname -I | awk '{print $1}')
+    DASH_PASS=$(grep '^DASHBOARD_PASSWORD=' /opt/supabase/docker/.env | cut -d= -f2)
     echo "" >> /etc/motd
     echo "=== Supabase ===" >> /etc/motd
-    echo "Studio:  http://$(hostname -I | awk '{print $1}'):3000" >> /etc/motd
-    echo "API:     http://$(hostname -I | awk '{print $1}'):8000" >> /etc/motd
-    echo "Config:  /opt/supabase/docker/.env" >> /etc/motd
+    echo "Studio:     http://${IP}:3000" >> /etc/motd
+    echo "API:        http://${IP}:8000" >> /etc/motd
+    echo "Dashboard:  admin / ${DASH_PASS}" >> /etc/motd
+    echo "Config:     /opt/supabase/docker/.env" >> /etc/motd
     echo "" >> /etc/motd
 
 final_message: "Supabase setup voltooid na $UPTIME seconden - Studio op http://<IP>:3000, API op http://<IP>:8000"
