@@ -234,9 +234,10 @@ fi
 
 # Starten indien gewenst
 if [[ "$START_AFTER" == true ]]; then
+    qm set $VM_ID --onboot 1
     log_info "VM starten..."
     qm start $VM_ID
-    log_success "VM gestart"
+    log_success "VM gestart (onboot ingeschakeld)"
 
     # Wacht op QEMU Guest Agent voor IP adres
     log_info "Wachten op IP adres (max 60s)..."

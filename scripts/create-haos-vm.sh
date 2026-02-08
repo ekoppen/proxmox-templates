@@ -291,9 +291,10 @@ log_success "Opgeruimd"
 # ── Optioneel starten ────────────────────────
 IP=""
 if [[ "$START_AFTER" == true ]]; then
+    qm set "$VM_ID" --onboot 1
     log_info "VM starten..."
     qm start "$VM_ID"
-    log_success "VM gestart"
+    log_success "VM gestart (onboot ingeschakeld)"
 
     # Wacht op IP adres via QEMU Guest Agent
     log_info "Wachten op IP adres (max 120s)..."
