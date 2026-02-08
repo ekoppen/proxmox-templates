@@ -249,7 +249,7 @@ check_template() {
     fi
 
     local tpl_id
-    tpl_id=$(grep "^TEMPLATE_ID=" "$create_script" | head -1 | cut -d'=' -f2)
+    tpl_id=$(grep "^TEMPLATE_ID=" "$create_script" | head -1 | cut -d'=' -f2 | awk '{print $1}')
     [[ -z "$tpl_id" ]] && return 0
 
     # Check of template bestaat
