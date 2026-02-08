@@ -200,6 +200,7 @@ log_success "CPU: ${CORES} cores, RAM: ${MEMORY}MB"
 # Cloud-init snippet koppelen
 log_info "Cloud-init configureren..."
 qm set $VM_ID --cicustom "user=${SNIPPET}"
+qm set $VM_ID --ipconfig0 ip=dhcp
 log_success "Snippet gekoppeld: $SNIPPET"
 
 # Disk resizen indien gewenst
