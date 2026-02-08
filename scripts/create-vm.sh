@@ -249,6 +249,13 @@ if [[ "$START_AFTER" == true ]]; then
             break
         fi
     done
+
+    # Hostname instellen via guest agent
+    if qm guest cmd $VM_ID ping 2>/dev/null; then
+        log_info "Hostname instellen op '$VM_NAME'..."
+        qm guest exec $VM_ID -- hostnamectl set-hostname "$VM_NAME" 2>/dev/null || true
+        log_success "Hostname ingesteld"
+    fi
 fi
 
 # ── VM beschrijving instellen ─────────────────
