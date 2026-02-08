@@ -236,8 +236,65 @@ delete_vm_menu() {
     fi
 }
 
+# ── Template check ───────────────────────────
+check_template() {
+    # Lees TEMPLATE_ID uit create-vm.sh
+    local create_script=""
+    if [[ -f "$SCRIPT_DIR/create-vm.sh" ]]; then
+        create_script="$SCRIPT_DIR/create-vm.sh"
+    elif [[ -f "/root/scripts/create-vm.sh" ]]; then
+        create_script="/root/scripts/create-vm.sh"
+    else
+        return 0
+    fi
+
+    local tpl_id
+    tpl_id=$(grep "^TEMPLATE_ID=" "$create_script" | head -1 | cut -d'=' -f2)
+    [[ -z "$tpl_id" ]] && return 0
+
+    # Check of template bestaat
+    if ! qm status "$tpl_id" &>/dev/null 2>&1; then
+        if confirm "Template Ontbreekt" \
+            "Template $tpl_id niet gevonden.\n\nWil je automatisch een Debian 12 cloud template aanmaken?\n\n(Dit downloadt het officiële cloud image en maakt een template aan)"; then
+
+            # Zoek create-template.sh
+            local tpl_script=""
+            if [[ -f "$SCRIPT_DIR/create-template.sh" ]]; then
+                tpl_script="$SCRIPT_DIR/create-template.sh"
+            elif [[ -f "/root/scripts/create-template.sh" ]]; then
+                tpl_script="/root/scripts/create-template.sh"
+            fi
+
+            if [[ -n "$tpl_script" ]]; then
+                clear
+                show_banner
+                echo -e "${BLUE}Template aanmaken...${NC}"
+                echo ""
+                bash "$tpl_script" --id "$tpl_id"
+                local exit_code=$?
+                echo ""
+                if [[ $exit_code -eq 0 ]]; then
+                    echo -e "${GREEN}Template aangemaakt. Druk op Enter om door te gaan...${NC}"
+                else
+                    echo -e "${RED}Template aanmaken mislukt. Druk op Enter om terug te gaan...${NC}"
+                    read -r
+                    return 1
+                fi
+                read -r
+            else
+                msg_info "Fout" "create-template.sh niet gevonden.\n\nInstalleer opnieuw met install.sh."
+                return 1
+            fi
+        fi
+    fi
+    return 0
+}
+
 # ── VM Aanmaak Flow ──────────────────────────
 create_vm_flow() {
+    # Template check
+    check_template || return
+
     # Stap 1: Type selecteren
     select_type || return
 

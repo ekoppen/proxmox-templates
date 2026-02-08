@@ -179,6 +179,53 @@ read -p "  VM ID van je Debian cloud-init template [9000]: " TEMPLATE_ID
 TEMPLATE_ID=${TEMPLATE_ID:-9000}
 sed -i "s|^TEMPLATE_ID=.*|TEMPLATE_ID=$TEMPLATE_ID|" "$SCRIPT_DIR/scripts/create-vm.sh"
 echo -e "  ${GREEN}✓ Template ID: $TEMPLATE_ID${NC}"
+
+# Check of het gekozen template bestaat
+if command -v qm &>/dev/null; then
+    if qm status "$TEMPLATE_ID" &>/dev/null 2>&1; then
+        echo -e "  ${GREEN}✓ Template $TEMPLATE_ID gevonden${NC}"
+    else
+        echo ""
+        echo -e "  ${YELLOW}Template $TEMPLATE_ID niet gevonden op deze host.${NC}"
+        echo ""
+        echo -e "  ${GREEN}[A]${NC} Automatisch aanmaken (Debian 12 cloud image)"
+        echo -e "  ${YELLOW}[D]${NC} Doorgaan zonder template"
+        echo ""
+        read -p "  Keuze [A]: " TPL_CHOICE
+        TPL_CHOICE=${TPL_CHOICE:-A}
+
+        case $TPL_CHOICE in
+            [Aa])
+                # Zoek create-template.sh
+                CREATE_TPL=""
+                if [[ -f "$SCRIPT_DIR/scripts/create-template.sh" ]]; then
+                    CREATE_TPL="$SCRIPT_DIR/scripts/create-template.sh"
+                elif [[ -f "/root/scripts/create-template.sh" ]]; then
+                    CREATE_TPL="/root/scripts/create-template.sh"
+                fi
+
+                if [[ -n "$CREATE_TPL" ]]; then
+                    echo ""
+                    bash "$CREATE_TPL" --id "$TEMPLATE_ID" --storage "${STORAGE:-local-lvm}"
+                    if [[ $? -eq 0 ]]; then
+                        echo -e "  ${GREEN}✓ Template $TEMPLATE_ID succesvol aangemaakt${NC}"
+                    else
+                        echo -e "  ${RED}Template aanmaken mislukt. Je kunt dit later handmatig doen met:${NC}"
+                        echo -e "  ${YELLOW}bash scripts/create-template.sh --id $TEMPLATE_ID${NC}"
+                    fi
+                else
+                    echo -e "  ${RED}create-template.sh niet gevonden${NC}"
+                    echo -e "  ${YELLOW}Voer eerst install.sh uit, of maak handmatig een template aan.${NC}"
+                fi
+                ;;
+            *)
+                echo -e "  ${YELLOW}Doorgaan zonder template. Maak later een template aan met:${NC}"
+                echo -e "  ${YELLOW}bash scripts/create-template.sh --id $TEMPLATE_ID${NC}"
+                ;;
+        esac
+    fi
+fi
+
 echo ""
 
 # ── Stap 3: Storage ──────────────────────────
