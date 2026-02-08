@@ -1,0 +1,74 @@
+#cloud-config
+
+# ============================================
+# COOLIFY CLOUD-INIT CONFIG
+# Self-hosted PaaS - Heroku/Vercel alternatief
+# Dashboard: http://<IP>:8000
+# ============================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - net-tools
+  - curl
+  - wget
+  - vim
+  - sudo
+  - openssh-server
+  - htop
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+ssh_pwauth: false
+
+users:
+  - name: admin
+    groups: sudo, adm, docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - YOUR_SSH_PUBLIC_KEY_HERE
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2"
+      }
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+runcmd:
+  # Basis services
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+  - systemctl enable ssh
+  - systemctl start ssh
+
+  # Docker installatie (Coolify installer verwacht dit soms al)
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker admin
+
+  # Coolify installatie via officieel script
+  - curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash
+
+  # MOTD met toegangsinfo
+  - |
+    echo "" >> /etc/motd
+    echo "=== Coolify ===" >> /etc/motd
+    echo "Dashboard: http://$(hostname -I | awk '{print $1}'):8000" >> /etc/motd
+    echo "" >> /etc/motd
+
+final_message: "Coolify setup voltooid na $UPTIME seconden - Dashboard op http://<IP>:8000"

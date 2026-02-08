@@ -12,6 +12,8 @@
 #   docker     - Docker + Portainer
 #   webserver  - Nginx + Certbot + UFW
 #   homelab    - Docker + NFS + homelab tools
+#   supabase   - Self-hosted Supabase
+#   coolify    - Self-hosted PaaS (Coolify)
 #
 # Voorbeelden:
 #   ./create-vm.sh web-01 110 webserver
@@ -31,12 +33,31 @@ DEFAULT_MEMORY=2048                       # MB
 DEFAULT_DISK_SIZE=""                      # Leeg = niet resizen
 CLONE_TYPE="linked"                       # linked of full
 
-# ── Kleuren ───────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# ── Libraries laden (optioneel) ───────────────
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+USE_REGISTRY=false
+
+for lib_path in "$SCRIPT_DIR/../lib" "/root/lib"; do
+    if [[ -f "$lib_path/defaults.sh" ]]; then
+        source "$lib_path/common.sh" 2>/dev/null || true
+        source "$lib_path/defaults.sh"
+        USE_REGISTRY=true
+        break
+    fi
+done
+
+# Fallback kleuren en functies als lib niet beschikbaar
+if [[ "$USE_REGISTRY" != true ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+    log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+    log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
+    log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
+    log_error()   { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
+fi
 
 # ── Functies ──────────────────────────────────
 usage() {
@@ -45,10 +66,16 @@ usage() {
     echo "Gebruik: $0 <naam> <vmid> <type> [opties]"
     echo ""
     echo "Types:"
-    echo "  base       Kale Debian server"
-    echo "  docker     Docker + Docker Compose + Portainer"
-    echo "  webserver  Nginx + Certbot + UFW firewall"
-    echo "  homelab    Docker + NFS client + homelab tools"
+    if [[ "$USE_REGISTRY" == true ]]; then
+        for key in "${TYPE_ORDER[@]}"; do
+            printf "  %-12s %s\n" "$key" "${TYPE_DESCRIPTIONS[$key]}"
+        done
+    else
+        echo "  base       Kale Debian server"
+        echo "  docker     Docker + Docker Compose + Portainer"
+        echo "  webserver  Nginx + Certbot + UFW firewall"
+        echo "  homelab    Docker + NFS client + homelab tools"
+    fi
     echo ""
     echo "Opties:"
     echo "  --cores N      Aantal CPU cores (standaard: $DEFAULT_CORES)"
@@ -63,30 +90,40 @@ usage() {
     exit 1
 }
 
-log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
-log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error()   { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
-
 get_snippet() {
     local type=$1
-    case $type in
-        base)      echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/base-cloud-config.yaml" ;;
-        docker)    echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/docker-cloud-config.yaml" ;;
-        webserver) echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/webserver-cloud-config.yaml" ;;
-        homelab)   echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/homelab-cloud-config.yaml" ;;
-        *)         log_error "Onbekend type: $type (kies uit: base, docker, webserver, homelab)" ;;
-    esac
+    if [[ "$USE_REGISTRY" == true ]]; then
+        local result
+        result=$(get_snippet_for_type "$type" "$SNIPPET_STORAGE" "$SNIPPET_PATH")
+        if [[ -n "$result" ]]; then
+            echo "$result"
+        else
+            log_error "Onbekend type: $type (gebruik '$0' zonder argumenten voor beschikbare types)"
+        fi
+    else
+        case $type in
+            base)      echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/base-cloud-config.yaml" ;;
+            docker)    echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/docker-cloud-config.yaml" ;;
+            webserver) echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/webserver-cloud-config.yaml" ;;
+            homelab)   echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/homelab-cloud-config.yaml" ;;
+            *)         log_error "Onbekend type: $type (kies uit: base, docker, webserver, homelab)" ;;
+        esac
+    fi
 }
 
 get_defaults_for_type() {
     local type=$1
-    case $type in
-        base)      CORES=${CORES:-$DEFAULT_CORES}; MEMORY=${MEMORY:-$DEFAULT_MEMORY} ;;
-        docker)    CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
-        webserver) CORES=${CORES:-2};               MEMORY=${MEMORY:-2048} ;;
-        homelab)   CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
-    esac
+    if [[ "$USE_REGISTRY" == true ]]; then
+        apply_defaults_for_type "$type" || log_error "Onbekend type: $type"
+    else
+        case $type in
+            base)      CORES=${CORES:-$DEFAULT_CORES}; MEMORY=${MEMORY:-$DEFAULT_MEMORY} ;;
+            docker)    CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
+            webserver) CORES=${CORES:-2};               MEMORY=${MEMORY:-2048} ;;
+            homelab)   CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
+            *)         log_error "Onbekend type: $type" ;;
+        esac
+    fi
 }
 
 # ── Argumenten verwerken ──────────────────────
@@ -206,7 +243,16 @@ if [[ -n "$IP" ]]; then
     echo -e "  IP:       ${GREEN}$IP${NC}"
     echo ""
     echo -e "  SSH:      ${YELLOW}ssh admin@$IP${NC}"
-    [[ "$VM_TYPE" == "docker" || "$VM_TYPE" == "homelab" ]] && \
-        echo -e "  Portainer: ${YELLOW}https://$IP:9443${NC}"
+
+    # Type-specifieke toegangsinformatie
+    if [[ "$USE_REGISTRY" == true ]]; then
+        POSTINFO=$(get_postinfo "$VM_TYPE")
+        if [[ -n "$POSTINFO" ]]; then
+            echo -e "  Toegang:  ${YELLOW}${POSTINFO//<IP>/$IP}${NC}"
+        fi
+    else
+        [[ "$VM_TYPE" == "docker" || "$VM_TYPE" == "homelab" ]] && \
+            echo -e "  Portainer: ${YELLOW}https://$IP:9443${NC}"
+    fi
 fi
 echo ""

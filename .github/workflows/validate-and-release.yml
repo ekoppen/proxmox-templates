@@ -47,7 +47,7 @@ jobs:
         run: |
           echo "=== Validating shell scripts ==="
           ERRORS=0
-          for file in scripts/*.sh install.sh setup.sh; do
+          for file in scripts/*.sh lib/*.sh install.sh setup.sh; do
             if [[ -f "$file" ]]; then
               echo -n "  Checking $file... "
               if bash -n "$file" 2>/dev/null; then
@@ -119,7 +119,7 @@ jobs:
           tar czf proxmox-templates-${VERSION}.tar.gz \
             --exclude='.github' \
             --exclude='.git' \
-            snippets/ scripts/ install.sh setup.sh README.md .gitignore
+            lib/ snippets/ scripts/ install.sh setup.sh README.md .gitignore
 
       - name: Generate release notes
         id: notes

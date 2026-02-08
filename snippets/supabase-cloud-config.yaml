@@ -1,0 +1,193 @@
+#cloud-config
+
+# ============================================
+# SUPABASE CLOUD-INIT CONFIG
+# Self-hosted Supabase met Docker
+# PostgreSQL + GoTrue Auth + PostgREST + Studio
+#
+# Secrets worden on-VM gegenereerd (veilig!)
+# Studio: http://<IP>:3000
+# API:    http://<IP>:8000
+# ============================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - net-tools
+  - curl
+  - wget
+  - vim
+  - sudo
+  - openssh-server
+  - htop
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - git
+  - jq
+
+ssh_pwauth: false
+
+users:
+  - name: admin
+    groups: sudo, adm, docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - YOUR_SSH_PUBLIC_KEY_HERE
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2"
+      }
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+  - path: /opt/supabase/generate-env.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/bin/bash
+      # Genereer Supabase .env met unieke secrets
+      set -e
+
+      ENV_FILE="/opt/supabase/docker/.env"
+      cd /opt/supabase/docker
+
+      # Genereer secrets
+      JWT_SECRET=$(openssl rand -base64 40 | tr -d '/+\n' | head -c 40)
+      POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+\n' | head -c 24)
+      DASHBOARD_PASSWORD=$(openssl rand -base64 16 | tr -d '/+\n' | head -c 16)
+      SECRET_KEY_BASE=$(openssl rand -hex 32)
+
+      # Base64url encode helper
+      b64url() { openssl enc -base64 -A | tr '+/' '-_' | tr -d '='; }
+
+      # JWT token generatie
+      gen_jwt() {
+        local role="$1"
+        local iat=$(date +%s)
+        local exp=$((iat + 157680000))
+        local header=$(echo -n '{"alg":"HS256","typ":"JWT"}' | b64url)
+        local payload=$(echo -n "{\"role\":\"${role}\",\"iss\":\"supabase\",\"iat\":${iat},\"exp\":${exp}}" | b64url)
+        local sig=$(echo -n "${header}.${payload}" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
+        echo "${header}.${payload}.${sig}"
+      }
+
+      ANON_KEY=$(gen_jwt "anon")
+      SERVICE_ROLE_KEY=$(gen_jwt "service_role")
+
+      # Kopieer voorbeeld .env en pas aan
+      if [[ -f .env.example ]]; then
+        cp .env.example "$ENV_FILE"
+      else
+        touch "$ENV_FILE"
+      fi
+
+      # Schrijf .env
+      cat > "$ENV_FILE" << EOF
+      # Auto-gegenereerd door cloud-init - $(date -Iseconds)
+      POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      JWT_SECRET=${JWT_SECRET}
+      ANON_KEY=${ANON_KEY}
+      SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
+      DASHBOARD_USERNAME=admin
+      DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+      SECRET_KEY_BASE=${SECRET_KEY_BASE}
+
+      POSTGRES_HOST=db
+      POSTGRES_DB=postgres
+      POSTGRES_PORT=5432
+
+      API_EXTERNAL_URL=http://localhost:8000
+      SUPABASE_PUBLIC_URL=http://localhost:8000
+
+      STUDIO_DEFAULT_ORGANIZATION=Default
+      STUDIO_DEFAULT_PROJECT=Default
+      STUDIO_PORT=3000
+
+      SITE_URL=http://localhost:3000
+      ADDITIONAL_REDIRECT_URLS=
+      JWT_EXPIRY=3600
+      DISABLE_SIGNUP=false
+
+      ENABLE_EMAIL_SIGNUP=true
+      ENABLE_EMAIL_AUTOCONFIRM=true
+      ENABLE_PHONE_SIGNUP=false
+      ENABLE_PHONE_AUTOCONFIRM=false
+
+      SMTP_ADMIN_EMAIL=admin@localhost
+      SMTP_HOST=supabase-mail
+      SMTP_PORT=2500
+      SMTP_USER=
+      SMTP_PASS=
+      SMTP_SENDER_NAME=Supabase
+
+      MAILER_URLPATHS_INVITE=/auth/v1/verify
+      MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
+      MAILER_URLPATHS_RECOVERY=/auth/v1/verify
+      MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
+
+      ENABLE_ANONYMOUS_USERS=false
+      EOF
+
+      # Verwijder leading whitespace (van heredoc indentatie)
+      sed -i 's/^      //' "$ENV_FILE"
+
+      echo "Supabase .env gegenereerd met unieke secrets"
+      echo "Dashboard wachtwoord: ${DASHBOARD_PASSWORD}"
+      echo "Bewaar dit wachtwoord veilig!"
+
+runcmd:
+  # Basis services
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+  - systemctl enable ssh
+  - systemctl start ssh
+
+  # Docker installatie
+  - curl -fsSL https://get.docker.com | sh
+  - apt-get install -y docker-compose-plugin
+  - usermod -aG docker admin
+
+  # Supabase setup
+  - mkdir -p /opt/supabase
+  - git clone --depth 1 https://github.com/supabase/supabase /opt/supabase/repo
+  - cp -r /opt/supabase/repo/docker /opt/supabase/docker
+
+  # Secrets genereren en .env aanmaken
+  - bash /opt/supabase/generate-env.sh
+
+  # Supabase starten
+  - cd /opt/supabase/docker && docker compose pull
+  - cd /opt/supabase/docker && docker compose up -d
+
+  # Opslag voor admin user
+  - mkdir -p /opt/docker/compose /opt/docker/data
+  - chown -R admin:admin /opt/docker
+
+  # Docker prune cronjob (skip supabase images)
+  - echo "0 3 * * 0 root docker image prune -af --filter 'label!=com.supabase' 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
+
+  # Bewaar credentials op leesbare plek
+  - |
+    echo "" >> /etc/motd
+    echo "=== Supabase ===" >> /etc/motd
+    echo "Studio:  http://$(hostname -I | awk '{print $1}'):3000" >> /etc/motd
+    echo "API:     http://$(hostname -I | awk '{print $1}'):8000" >> /etc/motd
+    echo "Config:  /opt/supabase/docker/.env" >> /etc/motd
+    echo "" >> /etc/motd
+
+final_message: "Supabase setup voltooid na $UPTIME seconden - Studio op http://<IP>:3000, API op http://<IP>:8000"
