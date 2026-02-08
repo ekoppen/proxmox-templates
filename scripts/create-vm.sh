@@ -15,6 +15,7 @@
 #   supabase   - Self-hosted Supabase
 #   coolify    - Self-hosted PaaS (Coolify)
 #   minio      - S3-compatible object storage (MinIO)
+#   appwrite   - Multi-project BaaS platform (Appwrite)
 #
 # Voorbeelden:
 #   ./create-vm.sh web-01 110 webserver
@@ -77,6 +78,7 @@ usage() {
         echo "  webserver  Nginx + Certbot + UFW firewall"
         echo "  homelab    Docker + NFS client + homelab tools"
         echo "  minio      S3-compatible object storage (MinIO)"
+        echo "  appwrite   Multi-project BaaS platform (Appwrite)"
     fi
     echo ""
     echo "Opties:"
@@ -109,7 +111,8 @@ get_snippet() {
             webserver) echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/webserver-cloud-config.yaml" ;;
             homelab)   echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/homelab-cloud-config.yaml" ;;
             minio)     echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/minio-cloud-config.yaml" ;;
-            *)         log_error "Onbekend type: $type (kies uit: base, docker, webserver, homelab, minio)" ;;
+            appwrite)  echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/appwrite-cloud-config.yaml" ;;
+            *)         log_error "Onbekend type: $type (kies uit: base, docker, webserver, homelab, minio, appwrite)" ;;
         esac
     fi
 }
@@ -125,6 +128,7 @@ get_defaults_for_type() {
             webserver) CORES=${CORES:-2};               MEMORY=${MEMORY:-2048} ;;
             homelab)   CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
             minio)     CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
+            appwrite)  CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
             *)         log_error "Onbekend type: $type" ;;
         esac
     fi

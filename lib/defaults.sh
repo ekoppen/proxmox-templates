@@ -93,6 +93,13 @@ register_type "minio" \
     "minio-cloud-config.yaml" \
     "Console: http://<IP>:9001 | API: http://<IP>:9000"
 
+register_type "appwrite" \
+    "Appwrite" \
+    "Multi-project BaaS platform (Firebase/Supabase alternatief)" \
+    4 4096 "50G" \
+    "appwrite-cloud-config.yaml" \
+    "Console: http://<IP>"
+
 # ── Lookup functies ──────────────────────────
 
 # Retourneert snippet pad voor Proxmox

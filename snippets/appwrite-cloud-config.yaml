@@ -1,0 +1,100 @@
+#cloud-config
+
+# ============================================
+# APPWRITE CLOUD-INIT CONFIG
+# Multi-project BaaS platform (Firebase/Supabase alternatief)
+#
+# Admin account wordt aangemaakt via web UI bij eerste login
+# Console: http://<IP>
+# ============================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - net-tools
+  - curl
+  - wget
+  - vim
+  - sudo
+  - openssh-server
+  - htop
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+ssh_pwauth: false
+
+users:
+  - name: admin
+    groups: sudo, adm, docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - YOUR_SSH_PUBLIC_KEY_HERE
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2"
+      }
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+runcmd:
+  # Basis services
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+  - systemctl enable ssh
+  - systemctl start ssh
+
+  # Docker installatie via officieel script
+  - curl -fsSL https://get.docker.com | sh
+  - apt-get install -y docker-compose-plugin
+  - usermod -aG docker admin
+
+  # Appwrite directory aanmaken
+  - mkdir -p /opt/appwrite
+
+  # Appwrite installatie via officieel install script (non-interactief)
+  - |
+    cd /opt/appwrite
+    docker run --rm \
+      --volume /var/run/docker.sock:/var/run/docker.sock \
+      --volume "$(pwd)"/appwrite:/usr/src/code/appwrite:rw \
+      -e _APP_PORT=80 \
+      -e _APP_PORT_HTTPS=443 \
+      --entrypoint="install" \
+      appwrite/appwrite:latest
+
+  # Docker directories voor admin user
+  - mkdir -p /opt/docker/compose /opt/docker/data
+  - chown -R admin:admin /opt/docker
+
+  # Docker prune cronjob
+  - echo "0 3 * * 0 root docker image prune -af 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
+
+  # Toegangsinfo in motd
+  - |
+    IP=$(hostname -I | awk '{print $1}')
+    echo "" >> /etc/motd
+    echo "=== Appwrite ===" >> /etc/motd
+    echo "Console:    http://${IP}" >> /etc/motd
+    echo "Console:    https://${IP}" >> /etc/motd
+    echo "Data:       /opt/appwrite" >> /etc/motd
+    echo "" >> /etc/motd
+    echo "Maak je admin account aan via de web UI." >> /etc/motd
+    echo "" >> /etc/motd
+
+final_message: "Appwrite setup voltooid na $UPTIME seconden - Console op http://<IP>"
