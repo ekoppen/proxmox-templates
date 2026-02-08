@@ -10,6 +10,7 @@
 #   ./quick-homelab.sh <naam> <vmid> [--start]
 #   ./quick-supabase.sh <naam> <vmid> [--start]
 #   ./quick-coolify.sh <naam> <vmid> [--start]
+#   ./quick-minio.sh <naam> <vmid> [--start]
 # ============================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -25,6 +26,8 @@ case "$(basename "$0")" in
         exec "$SCRIPT_DIR/create-vm.sh" "$1" "$2" supabase --cores 4 --memory 8192 --disk 50G "${@:3}" ;;
     quick-coolify.sh)
         exec "$SCRIPT_DIR/create-vm.sh" "$1" "$2" coolify --cores 2 --memory 2048 --disk 30G "${@:3}" ;;
+    quick-minio.sh)
+        exec "$SCRIPT_DIR/create-vm.sh" "$1" "$2" minio --cores 4 --memory 4096 --disk 50G "${@:3}" ;;
     *)
         echo "Onbekend script: $(basename "$0")"
         exit 1 ;;

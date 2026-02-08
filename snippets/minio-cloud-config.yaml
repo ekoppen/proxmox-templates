@@ -1,0 +1,111 @@
+#cloud-config
+
+# ============================================
+# MINIO CLOUD-INIT CONFIG
+# S3-compatible object storage met Docker
+#
+# Credentials worden on-VM gegenereerd (veilig!)
+# Console: http://<IP>:9001
+# API:     http://<IP>:9000
+# ============================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - qemu-guest-agent
+  - net-tools
+  - curl
+  - wget
+  - vim
+  - sudo
+  - openssh-server
+  - htop
+  - unattended-upgrades
+  - ca-certificates
+  - gnupg
+  - lsb-release
+
+ssh_pwauth: false
+
+users:
+  - name: admin
+    groups: sudo, adm, docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    lock_passwd: true
+    ssh_authorized_keys:
+      - YOUR_SSH_PUBLIC_KEY_HERE
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        },
+        "storage-driver": "overlay2"
+      }
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+runcmd:
+  # Basis services
+  - systemctl enable qemu-guest-agent
+  - systemctl start qemu-guest-agent
+  - systemctl enable ssh
+  - systemctl start ssh
+
+  # Docker installatie via officieel script
+  - curl -fsSL https://get.docker.com | sh
+  - apt-get install -y docker-compose-plugin
+  - usermod -aG docker admin
+
+  # MinIO directories aanmaken
+  - mkdir -p /opt/minio/data
+  - mkdir -p /opt/minio/config
+
+  # MinIO credentials genereren
+  - |
+    MINIO_ROOT_USER="admin"
+    MINIO_ROOT_PASSWORD=$(openssl rand -base64 24 | tr -d '/+\n' | head -c 24)
+    echo "MINIO_ROOT_USER=${MINIO_ROOT_USER}" > /opt/minio/config/.env
+    echo "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" >> /opt/minio/config/.env
+
+  # MinIO starten als Docker container
+  - |
+    source /opt/minio/config/.env
+    docker run -d \
+      --name minio \
+      --restart=always \
+      -p 9000:9000 \
+      -p 9001:9001 \
+      -e "MINIO_ROOT_USER=${MINIO_ROOT_USER}" \
+      -e "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" \
+      -v /opt/minio/data:/data \
+      minio/minio:latest server /data --console-address ":9001"
+
+  # Docker directories voor admin user
+  - mkdir -p /opt/docker/compose /opt/docker/data
+  - chown -R admin:admin /opt/docker
+
+  # Docker prune cronjob
+  - echo "0 3 * * 0 root docker image prune -af 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
+
+  # Credentials opslaan in motd
+  - |
+    IP=$(hostname -I | awk '{print $1}')
+    MINIO_PASS=$(grep '^MINIO_ROOT_PASSWORD=' /opt/minio/config/.env | cut -d= -f2)
+    echo "" >> /etc/motd
+    echo "=== MinIO ===" >> /etc/motd
+    echo "Console:    http://${IP}:9001" >> /etc/motd
+    echo "API:        http://${IP}:9000" >> /etc/motd
+    echo "Login:      admin / ${MINIO_PASS}" >> /etc/motd
+    echo "Config:     /opt/minio/config/.env" >> /etc/motd
+    echo "" >> /etc/motd
+
+final_message: "MinIO setup voltooid na $UPTIME seconden - Console op http://<IP>:9001, API op http://<IP>:9000"

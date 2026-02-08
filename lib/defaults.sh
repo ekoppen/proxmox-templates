@@ -86,6 +86,13 @@ register_type "coolify" \
     "coolify-cloud-config.yaml" \
     "Dashboard: http://<IP>:8000"
 
+register_type "minio" \
+    "MinIO" \
+    "S3-compatible object storage" \
+    4 4096 "50G" \
+    "minio-cloud-config.yaml" \
+    "Console: http://<IP>:9001 | API: http://<IP>:9000"
+
 # ── Lookup functies ──────────────────────────
 
 # Retourneert snippet pad voor Proxmox
