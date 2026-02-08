@@ -60,17 +60,23 @@ write_files:
     owner: root:root
     content: |
       #!/bin/bash
-      # Genereer Supabase .env met unieke secrets
+      # Genereer Supabase .env op basis van .env.example met unieke secrets
       set -e
 
-      ENV_FILE="/opt/supabase/docker/.env"
       cd /opt/supabase/docker
+      ENV_FILE="/opt/supabase/docker/.env"
 
-      # Genereer secrets
+      # Start met het officiële .env.example als basis
+      cp .env.example "$ENV_FILE"
+
+      # Genereer unieke secrets
       JWT_SECRET=$(openssl rand -base64 40 | tr -d '/+\n' | head -c 40)
       POSTGRES_PASSWORD=$(openssl rand -base64 24 | tr -d '/+\n' | head -c 24)
       DASHBOARD_PASSWORD=$(openssl rand -base64 16 | tr -d '/+\n' | head -c 16)
       SECRET_KEY_BASE=$(openssl rand -hex 32)
+      VAULT_ENC_KEY=$(openssl rand -hex 16)
+      PG_META_CRYPTO_KEY=$(openssl rand -hex 16)
+      LOGFLARE_API_KEY=$(openssl rand -hex 16)
 
       # Base64url encode helper
       b64url() { openssl enc -base64 -A | tr '+/' '-_' | tr -d '='; }
@@ -89,62 +95,24 @@ write_files:
       ANON_KEY=$(gen_jwt "anon")
       SERVICE_ROLE_KEY=$(gen_jwt "service_role")
 
-      # Kopieer voorbeeld .env en pas aan
-      if [[ -f .env.example ]]; then
-        cp .env.example "$ENV_FILE"
+      # Vervang secrets in .env (gekopieerd van .env.example)
+      sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${POSTGRES_PASSWORD}|" "$ENV_FILE"
+      sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$ENV_FILE"
+      sed -i "s|^ANON_KEY=.*|ANON_KEY=${ANON_KEY}|" "$ENV_FILE"
+      sed -i "s|^SERVICE_ROLE_KEY=.*|SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}|" "$ENV_FILE"
+      sed -i "s|^DASHBOARD_USERNAME=.*|DASHBOARD_USERNAME=admin|" "$ENV_FILE"
+      sed -i "s|^DASHBOARD_PASSWORD=.*|DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}|" "$ENV_FILE"
+      sed -i "s|^SECRET_KEY_BASE=.*|SECRET_KEY_BASE=${SECRET_KEY_BASE}|" "$ENV_FILE"
+      sed -i "s|^VAULT_ENC_KEY=.*|VAULT_ENC_KEY=${VAULT_ENC_KEY}|" "$ENV_FILE"
+      sed -i "s|^PG_META_CRYPTO_KEY=.*|PG_META_CRYPTO_KEY=${PG_META_CRYPTO_KEY}|" "$ENV_FILE"
+      sed -i "s|^LOGFLARE_API_KEY=.*|LOGFLARE_API_KEY=${LOGFLARE_API_KEY}|" "$ENV_FILE"
+
+      # Stel DOCKER_SOCKET_LOCATION in als die ontbreekt of leeg is
+      if ! grep -q "^DOCKER_SOCKET_LOCATION=" "$ENV_FILE"; then
+        echo "DOCKER_SOCKET_LOCATION=/var/run/docker.sock" >> "$ENV_FILE"
       else
-        touch "$ENV_FILE"
+        sed -i "s|^DOCKER_SOCKET_LOCATION=.*|DOCKER_SOCKET_LOCATION=/var/run/docker.sock|" "$ENV_FILE"
       fi
-
-      # Schrijf .env
-      cat > "$ENV_FILE" << EOF
-      # Auto-gegenereerd door cloud-init - $(date -Iseconds)
-      POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      JWT_SECRET=${JWT_SECRET}
-      ANON_KEY=${ANON_KEY}
-      SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
-      DASHBOARD_USERNAME=admin
-      DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
-      SECRET_KEY_BASE=${SECRET_KEY_BASE}
-
-      POSTGRES_HOST=db
-      POSTGRES_DB=postgres
-      POSTGRES_PORT=5432
-
-      API_EXTERNAL_URL=http://localhost:8000
-      SUPABASE_PUBLIC_URL=http://localhost:8000
-
-      STUDIO_DEFAULT_ORGANIZATION=Default
-      STUDIO_DEFAULT_PROJECT=Default
-      STUDIO_PORT=3000
-
-      SITE_URL=http://localhost:3000
-      ADDITIONAL_REDIRECT_URLS=
-      JWT_EXPIRY=3600
-      DISABLE_SIGNUP=false
-
-      ENABLE_EMAIL_SIGNUP=true
-      ENABLE_EMAIL_AUTOCONFIRM=true
-      ENABLE_PHONE_SIGNUP=false
-      ENABLE_PHONE_AUTOCONFIRM=false
-
-      SMTP_ADMIN_EMAIL=admin@localhost
-      SMTP_HOST=supabase-mail
-      SMTP_PORT=2500
-      SMTP_USER=
-      SMTP_PASS=
-      SMTP_SENDER_NAME=Supabase
-
-      MAILER_URLPATHS_INVITE=/auth/v1/verify
-      MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
-      MAILER_URLPATHS_RECOVERY=/auth/v1/verify
-      MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
-
-      ENABLE_ANONYMOUS_USERS=false
-      EOF
-
-      # Verwijder leading whitespace (van heredoc indentatie)
-      sed -i 's/^      //' "$ENV_FILE"
 
       echo "Supabase .env gegenereerd met unieke secrets"
       echo "Dashboard wachtwoord: ${DASHBOARD_PASSWORD}"
@@ -171,8 +139,7 @@ runcmd:
   - bash /opt/supabase/generate-env.sh
 
   # Supabase starten
-  - cd /opt/supabase/docker && docker compose pull
-  - cd /opt/supabase/docker && docker compose up -d
+  - [bash, -c, "cd /opt/supabase/docker && docker compose pull && docker compose up -d"]
 
   # Opslag voor admin user
   - mkdir -p /opt/docker/compose /opt/docker/data
