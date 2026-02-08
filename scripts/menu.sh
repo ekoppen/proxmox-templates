@@ -270,7 +270,7 @@ check_template() {
                 show_banner
                 echo -e "${BLUE}Template aanmaken...${NC}"
                 echo ""
-                bash "$tpl_script" --id "$tpl_id"
+                bash "$tpl_script" --id "$tpl_id" --auto
                 local exit_code=$?
                 echo ""
                 if [[ $exit_code -eq 0 ]]; then
@@ -285,6 +285,9 @@ check_template() {
                 msg_info "Fout" "create-template.sh niet gevonden.\n\nInstalleer opnieuw met install.sh."
                 return 1
             fi
+        else
+            # Gebruiker kiest "Nee" - terug naar menu
+            return 1
         fi
     fi
     return 0

@@ -17,6 +17,7 @@
 #   --storage NAAM   Storage backend (standaard: local-lvm)
 #   --bridge NAAM    Netwerk bridge (standaard: vmbr0)
 #   --name NAAM      Template naam (standaard: debian-12-cloud)
+#   --auto           Non-interactief (geen prompts, voor gebruik vanuit menu)
 #   --help           Toon deze hulptekst
 # ============================================
 
@@ -72,6 +73,7 @@ usage() {
     echo "  --storage NAAM   Storage backend (standaard: $STORAGE)"
     echo "  --bridge NAAM    Netwerk bridge (standaard: $BRIDGE)"
     echo "  --name NAAM      Template naam (standaard: $TEMPLATE_NAME)"
+    echo "  --auto           Non-interactief (geen prompts)"
     echo "  --help           Toon deze hulptekst"
     echo ""
     echo "Voorbeelden:"
@@ -82,12 +84,15 @@ usage() {
 }
 
 # ── Argumenten verwerken ──────────────────────
+AUTO_MODE=false
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --id)      TEMPLATE_ID=$2; shift 2 ;;
         --storage) STORAGE=$2;     shift 2 ;;
         --bridge)  BRIDGE=$2;      shift 2 ;;
         --name)    TEMPLATE_NAME=$2; shift 2 ;;
+        --auto)    AUTO_MODE=true;  shift ;;
         --help)    usage ;;
         *)         log_error "Onbekende optie: $1 (gebruik --help voor opties)" ;;
     esac
@@ -117,6 +122,10 @@ log_success "Alle vereisten aanwezig"
 log_info "[2/9] Bestaande template controleren..."
 
 if qm status "$TEMPLATE_ID" &>/dev/null 2>&1; then
+    if [[ "$AUTO_MODE" == true ]]; then
+        log_info "Template $TEMPLATE_ID bestaat al - overgeslagen"
+        exit 0
+    fi
     log_warn "VM/template $TEMPLATE_ID bestaat al"
     echo ""
     echo -e "  ${YELLOW}[O]${NC} Overschrijven (verwijder bestaande VM eerst)"
@@ -146,23 +155,28 @@ log_info "[3/9] Cloud image controleren..."
 
 DOWNLOAD_IMAGE=true
 if [[ -f "$IMAGE_FILE" ]]; then
-    log_warn "Image bestaat al: $IMAGE_FILE"
-    echo ""
-    echo -e "  ${YELLOW}[H]${NC} Hergebruiken (sla download over)"
-    echo -e "  ${YELLOW}[O]${NC} Opnieuw downloaden"
-    echo ""
-    read -p "  Keuze [H]: " IMAGE_CHOICE
-    IMAGE_CHOICE=${IMAGE_CHOICE:-H}
+    if [[ "$AUTO_MODE" == true ]]; then
+        DOWNLOAD_IMAGE=false
+        log_success "Bestaand image hergebruikt"
+    else
+        log_warn "Image bestaat al: $IMAGE_FILE"
+        echo ""
+        echo -e "  ${YELLOW}[H]${NC} Hergebruiken (sla download over)"
+        echo -e "  ${YELLOW}[O]${NC} Opnieuw downloaden"
+        echo ""
+        read -p "  Keuze [H]: " IMAGE_CHOICE
+        IMAGE_CHOICE=${IMAGE_CHOICE:-H}
 
-    case $IMAGE_CHOICE in
-        [Oo])
-            DOWNLOAD_IMAGE=true
-            ;;
-        *)
-            DOWNLOAD_IMAGE=false
-            log_success "Bestaand image hergebruikt"
-            ;;
-    esac
+        case $IMAGE_CHOICE in
+            [Oo])
+                DOWNLOAD_IMAGE=true
+                ;;
+            *)
+                DOWNLOAD_IMAGE=false
+                log_success "Bestaand image hergebruikt"
+                ;;
+        esac
+    fi
 fi
 
 # ── Stap 4: Download ─────────────────────────
