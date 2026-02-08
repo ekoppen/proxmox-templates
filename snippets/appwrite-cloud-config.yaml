@@ -91,10 +91,10 @@ runcmd:
     echo "" >> /etc/motd
     echo "=== Appwrite ===" >> /etc/motd
     echo "Console:    http://${IP}" >> /etc/motd
-    echo "Console:    https://${IP}" >> /etc/motd
     echo "Data:       /opt/appwrite" >> /etc/motd
     echo "" >> /etc/motd
-    echo "Maak je admin account aan via de web UI." >> /etc/motd
+    echo "Login:      Ga naar de console en maak je admin account aan." >> /etc/motd
+    echo "            Er zijn geen standaard credentials." >> /etc/motd
     echo "" >> /etc/motd
 
 final_message: "Appwrite setup voltooid na $UPTIME seconden - Console op http://<IP>"
