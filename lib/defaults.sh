@@ -95,7 +95,7 @@ register_type "minio" \
 
 register_type "appwrite" \
     "Appwrite" \
-    "Multi-project BaaS platform (Firebase/Supabase alternatief)" \
+    "Multi-project BaaS platform" \
     4 4096 "50G" \
     "appwrite-cloud-config.yaml" \
     "Console: http://<IP>"
