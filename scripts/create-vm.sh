@@ -20,6 +20,7 @@
 # Voorbeelden:
 #   ./create-vm.sh web-01 110 webserver
 #   ./create-vm.sh docker-prod 120 docker --cores 4 --memory 8192
+#   ./create-vm.sh docker-prod 120 docker --vlan 100 --start
 #   ./create-vm.sh test-vm 130 base --full
 # ============================================
 
@@ -85,12 +86,14 @@ usage() {
     echo "  --cores N      Aantal CPU cores (standaard: $DEFAULT_CORES)"
     echo "  --memory N     RAM in MB (standaard: $DEFAULT_MEMORY)"
     echo "  --disk SIZE    Disk resizen, bijv. 32G (standaard: niet resizen)"
+    echo "  --vlan N       VLAN tag (standaard: geen)"
     echo "  --full         Full clone i.p.v. linked clone"
     echo "  --start        VM direct starten na aanmaken"
     echo ""
     echo "Voorbeelden:"
     echo "  $0 web-01 110 webserver"
     echo "  $0 docker-prod 120 docker --cores 4 --memory 8192 --disk 50G --start"
+    echo "  $0 docker-prod 120 docker --vlan 100 --start"
     exit 1
 }
 
@@ -145,6 +148,7 @@ shift 3
 CORES=""
 MEMORY=""
 DISK_SIZE="$DEFAULT_DISK_SIZE"
+VLAN_TAG=""
 START_AFTER=false
 
 while [[ $# -gt 0 ]]; do
@@ -152,6 +156,7 @@ while [[ $# -gt 0 ]]; do
         --cores)   CORES=$2;      shift 2 ;;
         --memory)  MEMORY=$2;     shift 2 ;;
         --disk)    DISK_SIZE=$2;  shift 2 ;;
+        --vlan)    VLAN_TAG=$2;   shift 2 ;;
         --full)    CLONE_TYPE="full"; shift ;;
         --start)   START_AFTER=true;  shift ;;
         *)         log_error "Onbekende optie: $1" ;;
@@ -189,6 +194,7 @@ log_info "Cores:    $CORES"
 log_info "Memory:   ${MEMORY}MB"
 log_info "Snippet:  $SNIPPET"
 [[ -n "$DISK_SIZE" ]] && log_info "Disk:     $DISK_SIZE"
+[[ -n "$VLAN_TAG" ]] && log_info "VLAN:     $VLAN_TAG"
 echo ""
 
 # Clone
@@ -204,6 +210,14 @@ log_success "VM gekloond"
 log_info "Resources configureren..."
 qm set $VM_ID --cores "$CORES" --memory "$MEMORY"
 log_success "CPU: ${CORES} cores, RAM: ${MEMORY}MB"
+
+# VLAN tag instellen indien opgegeven
+if [[ -n "$VLAN_TAG" ]]; then
+    log_info "VLAN tag $VLAN_TAG instellen..."
+    CURRENT_NET=$(qm config $VM_ID | grep "^net0:" | cut -d' ' -f2)
+    qm set $VM_ID --net0 "${CURRENT_NET},tag=${VLAN_TAG}"
+    log_success "VLAN tag $VLAN_TAG ingesteld"
+fi
 
 # Cloud-init snippet koppelen
 log_info "Cloud-init configureren..."
@@ -259,6 +273,7 @@ echo ""
 echo -e "  Naam:     ${GREEN}$VM_NAME${NC}"
 echo -e "  ID:       $VM_ID"
 echo -e "  Type:     $VM_TYPE"
+[[ -n "$VLAN_TAG" ]] && echo -e "  VLAN:     $VLAN_TAG"
 echo -e "  Cores:    $CORES"
 echo -e "  RAM:      ${MEMORY}MB"
 if [[ -n "$IP" ]]; then

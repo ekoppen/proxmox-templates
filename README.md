@@ -78,6 +78,11 @@ create-vm.sh appwrite-01 160 appwrite --start
 create-haos-vm.sh haos 300 --start
 create-haos-vm.sh haos 300 --version 13.2 --cores 4 --memory 4096 --start
 
+# With VLAN tag
+create-vm.sh docker-01 110 docker --vlan 100 --start
+create-haos-vm.sh haos 300 --vlan 200 --start
+create-template.sh --vlan 50
+
 # Full clone (independent of template)
 create-vm.sh prod-db 170 docker --full --cores 8 --memory 16384 --disk 100G
 
@@ -109,6 +114,10 @@ create-template.sh --id 9001 --storage local-lvm --bridge vmbr1
 ```
 
 Downloads the official Debian 12 cloud image, verifies the checksum, and creates a Proxmox template. Also works non-interactively with `--auto` (used by the menu).
+
+### VLAN support
+
+All scripts support `--vlan N` to set a VLAN tag on the VM's network interface. When specified, Proxmox adds `tag=N` to the `net0` configuration. Without `--vlan`, no VLAN tag is applied (default behavior). The interactive menu also offers a VLAN input field in advanced mode and for HAOS VMs.
 
 ## Structure
 

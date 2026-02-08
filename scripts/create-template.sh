@@ -17,6 +17,7 @@
 #   --storage NAAM   Storage backend (standaard: local-lvm)
 #   --bridge NAAM    Netwerk bridge (standaard: vmbr0)
 #   --name NAAM      Template naam (standaard: debian-12-cloud)
+#   --vlan N         VLAN tag (standaard: geen)
 #   --auto           Non-interactief (geen prompts, voor gebruik vanuit menu)
 #   --help           Toon deze hulptekst
 # ============================================
@@ -27,6 +28,7 @@ set -e
 TEMPLATE_ID=9000
 STORAGE="local-lvm"
 BRIDGE="vmbr0"
+VLAN_TAG=""
 TEMPLATE_NAME="debian-12-cloud"
 
 # Debian 12 Bookworm cloud image
@@ -72,6 +74,7 @@ usage() {
     echo "  --id ID          Template VM ID (standaard: $TEMPLATE_ID)"
     echo "  --storage NAAM   Storage backend (standaard: $STORAGE)"
     echo "  --bridge NAAM    Netwerk bridge (standaard: $BRIDGE)"
+    echo "  --vlan N         VLAN tag (standaard: geen)"
     echo "  --name NAAM      Template naam (standaard: $TEMPLATE_NAME)"
     echo "  --auto           Non-interactief (geen prompts)"
     echo "  --help           Toon deze hulptekst"
@@ -80,6 +83,7 @@ usage() {
     echo "  $0"
     echo "  $0 --id 9001 --storage local-lvm"
     echo "  $0 --id 9000 --bridge vmbr1 --name debian-12-test"
+    echo "  $0 --id 9000 --vlan 100"
     exit 0
 }
 
@@ -91,6 +95,7 @@ while [[ $# -gt 0 ]]; do
         --id)      TEMPLATE_ID=$2; shift 2 ;;
         --storage) STORAGE=$2;     shift 2 ;;
         --bridge)  BRIDGE=$2;      shift 2 ;;
+        --vlan)    VLAN_TAG=$2;   shift 2 ;;
         --name)    TEMPLATE_NAME=$2; shift 2 ;;
         --auto)    AUTO_MODE=true;  shift ;;
         --help)    usage ;;
@@ -107,6 +112,7 @@ echo ""
 log_info "Template ID:  $TEMPLATE_ID"
 log_info "Storage:      $STORAGE"
 log_info "Bridge:       $BRIDGE"
+[[ -n "$VLAN_TAG" ]] && log_info "VLAN:         $VLAN_TAG"
 log_info "Naam:         $TEMPLATE_NAME"
 echo ""
 
@@ -214,11 +220,14 @@ rm -f "$CHECKSUM_FILE"
 # ── Stap 6: VM aanmaken ──────────────────────
 log_info "[6/9] VM aanmaken (ID: $TEMPLATE_ID)..."
 
+NET0="virtio,bridge=${BRIDGE}"
+[[ -n "$VLAN_TAG" ]] && NET0="${NET0},tag=${VLAN_TAG}"
+
 qm create "$TEMPLATE_ID" \
     --name "$TEMPLATE_NAME" \
     --memory 2048 \
     --cores 2 \
-    --net0 "virtio,bridge=$BRIDGE"
+    --net0 "$NET0"
 
 log_success "VM $TEMPLATE_ID aangemaakt"
 
@@ -279,6 +288,7 @@ echo -e "  ID:       ${GREEN}$TEMPLATE_ID${NC}"
 echo -e "  Naam:     $TEMPLATE_NAME"
 echo -e "  Storage:  $STORAGE"
 echo -e "  Bridge:   $BRIDGE"
+[[ -n "$VLAN_TAG" ]] && echo -e "  VLAN:     $VLAN_TAG"
 echo ""
 echo "  Je kunt nu VMs aanmaken met:"
 echo ""

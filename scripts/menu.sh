@@ -114,6 +114,9 @@ input_advanced() {
         "linked" "Linked clone (snel, deelt base disk)" \
         "full" "Full clone (onafhankelijk, meer ruimte)") || return 1
 
+    # VLAN
+    VLAN_TAG=$(input_box "VLAN" "VLAN tag (leeg = geen VLAN):" "") || return 1
+
     # Auto-start
     if confirm "Auto-start" "VM direct starten na aanmaken?"; then
         START_AFTER="--start"
@@ -130,6 +133,9 @@ show_confirmation() {
     local start_info="Nee"
     [[ -n "$START_AFTER" ]] && start_info="Ja"
 
+    local vlan_info="geen"
+    [[ -n "$VLAN_TAG" ]] && vlan_info="$VLAN_TAG"
+
     local postinfo="${TYPE_POSTINFO[$SELECTED_TYPE]}"
     local postinfo_line=""
     [[ -n "$postinfo" ]] && postinfo_line="\nToegang:    $postinfo"
@@ -144,6 +150,7 @@ show_confirmation() {
   RAM:        ${MEMORY}MB
   Disk:       $disk_info
   Clone:      $CLONE_TYPE
+  VLAN:       $vlan_info
   Auto-start: $start_info
 $postinfo_line
 
@@ -156,6 +163,7 @@ create_vm() {
     cmd_args+=("--cores" "$CORES")
     cmd_args+=("--memory" "$MEMORY")
     [[ -n "$DISK_SIZE" ]] && cmd_args+=("--disk" "$DISK_SIZE")
+    [[ -n "$VLAN_TAG" ]] && cmd_args+=("--vlan" "$VLAN_TAG")
     [[ "$CLONE_TYPE" == "full" ]] && cmd_args+=("--full")
     [[ -n "$START_AFTER" ]] && cmd_args+=("--start")
 
@@ -319,9 +327,15 @@ create_haos_flow() {
     # Versie (leeg = nieuwste)
     HAOS_VERSION=$(input_box "HAOS Versie" "HAOS versie (leeg = nieuwste):" "") || return 1
 
+    # VLAN
+    VLAN_TAG=$(input_box "VLAN" "VLAN tag (leeg = geen VLAN):" "") || return 1
+
     # Bevestiging
     local version_info="nieuwste (auto-detectie)"
     [[ -n "$HAOS_VERSION" ]] && version_info="$HAOS_VERSION"
+
+    local vlan_info="geen"
+    [[ -n "$VLAN_TAG" ]] && vlan_info="$VLAN_TAG"
 
     whiptail --backtitle "$BACKTITLE" --title "Bevestiging" --yesno \
 "Home Assistant OS VM wordt aangemaakt:
@@ -329,13 +343,14 @@ create_haos_flow() {
   Naam:     $VM_NAME
   ID:       $VM_ID
   Versie:   $version_info
+  VLAN:     $vlan_info
   BIOS:     UEFI (OVMF)
   Machine:  q35
 
 Dit is een appliance image (geen cloud-init).
 De VM wordt automatisch gestart.
 
-Doorgaan?" 18 60 || return 1
+Doorgaan?" 19 60 || return 1
 
     # Zoek create-haos-vm.sh
     local haos_script
@@ -349,6 +364,7 @@ Doorgaan?" 18 60 || return 1
 
     local cmd_args=("$VM_NAME" "$VM_ID" "--start")
     [[ -n "$HAOS_VERSION" ]] && cmd_args+=("--version" "$HAOS_VERSION")
+    [[ -n "$VLAN_TAG" ]] && cmd_args+=("--vlan" "$VLAN_TAG")
 
     clear
     show_banner
@@ -396,6 +412,7 @@ create_vm_flow() {
         MEMORY="${TYPE_MEMORY[$SELECTED_TYPE]}"
         DISK_SIZE="${TYPE_DISK[$SELECTED_TYPE]}"
         CLONE_TYPE="linked"
+        VLAN_TAG=""
         START_AFTER="--start"
     fi
 

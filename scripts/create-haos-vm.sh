@@ -21,6 +21,7 @@
 #   --cores N        CPU cores (standaard: 2)
 #   --memory N       RAM in MB (standaard: 2048)
 #   --disk SIZE      Disk grootte (standaard: 32G)
+#   --vlan N         VLAN tag (standaard: geen)
 #   --start          VM direct starten
 #   --help           Toon deze hulptekst
 # ============================================
@@ -30,6 +31,7 @@ set -e
 # ── Configuratie ──────────────────────────────
 STORAGE="local-lvm"
 BRIDGE="vmbr0"
+VLAN_TAG=""
 DEFAULT_CORES=2
 DEFAULT_MEMORY=2048
 DEFAULT_DISK="32G"
@@ -80,6 +82,7 @@ usage() {
     echo "  --cores N        CPU cores (standaard: $DEFAULT_CORES)"
     echo "  --memory N       RAM in MB (standaard: $DEFAULT_MEMORY)"
     echo "  --disk SIZE      Disk grootte (standaard: $DEFAULT_DISK)"
+    echo "  --vlan N         VLAN tag (standaard: geen)"
     echo "  --start          VM direct starten"
     echo "  --help           Toon deze hulptekst"
     echo ""
@@ -87,6 +90,7 @@ usage() {
     echo "  $0 haos 300 --start"
     echo "  $0 haos 300 --version 13.2 --start"
     echo "  $0 haos 300 --cores 4 --memory 4096 --disk 64G"
+    echo "  $0 haos 300 --vlan 200 --start"
     exit 0
 }
 
@@ -131,6 +135,7 @@ while [[ $# -gt 0 ]]; do
         --version) HAOS_VERSION=$2;  shift 2 ;;
         --storage) STORAGE=$2;       shift 2 ;;
         --bridge)  BRIDGE=$2;        shift 2 ;;
+        --vlan)    VLAN_TAG=$2;      shift 2 ;;
         --cores)   CORES=$2;         shift 2 ;;
         --memory)  MEMORY=$2;        shift 2 ;;
         --disk)    DISK_SIZE=$2;     shift 2 ;;
@@ -223,7 +228,11 @@ log_info "Memory:   ${MEMORY}MB"
 log_info "Disk:     $DISK_SIZE"
 log_info "Storage:  $STORAGE"
 log_info "Bridge:   $BRIDGE"
+[[ -n "$VLAN_TAG" ]] && log_info "VLAN:     $VLAN_TAG"
 echo ""
+
+NET0="virtio,bridge=${BRIDGE}"
+[[ -n "$VLAN_TAG" ]] && NET0="${NET0},tag=${VLAN_TAG}"
 
 qm create "$VM_ID" \
     --name "$VM_NAME" \
@@ -232,7 +241,7 @@ qm create "$VM_ID" \
     --efidisk0 "${STORAGE}:1,pre-enrolled-keys=0" \
     --cores "$CORES" \
     --memory "$MEMORY" \
-    --net0 "virtio,bridge=${BRIDGE}" \
+    --net0 "$NET0" \
     --ostype l26
 
 log_success "VM aangemaakt (q35 + OVMF UEFI)"
@@ -323,6 +332,7 @@ echo -e "  Versie:   HAOS $HAOS_VERSION"
 echo -e "  Cores:    $CORES"
 echo -e "  RAM:      ${MEMORY}MB"
 echo -e "  Disk:     $DISK_SIZE"
+[[ -n "$VLAN_TAG" ]] && echo -e "  VLAN:     $VLAN_TAG"
 echo -e "  BIOS:     UEFI (OVMF)"
 if [[ -n "$IP" ]]; then
     echo -e "  IP:       ${GREEN}$IP${NC}"
