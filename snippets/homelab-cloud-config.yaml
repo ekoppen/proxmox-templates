@@ -58,12 +58,29 @@ runcmd:
   # NFS mount directory (pas IP/pad aan naar je QNAP)
   - mkdir -p /mnt/nas
 
-  # Portainer CE
-  - docker volume create portainer_data
-  - docker run -d --name portainer --restart=always -p 8000:8000 -p 9443:9443 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+  # Portainer CE (alleen als deze nog niet draait)
+  - |
+    if ! docker ps -q --filter name=^portainer$ | grep -q .; then
+      docker volume create portainer_data
+      docker run -d --name portainer --restart=always -p 8000:8000 -p 9443:9443 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+    fi
 
   # Docker prune cronjob
   - echo "0 3 * * 0 root docker system prune -af 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
+
+  # MOTD met toegangsinformatie
+  - |
+    IP=$(hostname -I | awk '{print $1}')
+    cat > /etc/motd << EOF
+
+    ╔══════════════════════════════════════════╗
+    ║  Homelab Server                          ║
+    ╠══════════════════════════════════════════╣
+    ║  SSH:       ssh admin@${IP}              ║
+    ║  Portainer: https://${IP}:9443           ║
+    ╚══════════════════════════════════════════╝
+
+    EOF
 
 write_files:
   - path: /etc/docker/daemon.json

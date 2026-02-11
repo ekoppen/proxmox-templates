@@ -69,25 +69,29 @@ runcmd:
   - mkdir -p /opt/minio/data
   - mkdir -p /opt/minio/config
 
-  # MinIO credentials genereren
+  # MinIO credentials genereren (alleen als ze nog niet bestaan)
   - |
-    MINIO_ROOT_USER="admin"
-    MINIO_ROOT_PASSWORD=$(openssl rand -base64 24 | tr -d '/+\n' | head -c 24)
-    echo "MINIO_ROOT_USER=${MINIO_ROOT_USER}" > /opt/minio/config/.env
-    echo "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" >> /opt/minio/config/.env
+    if [ ! -f /opt/minio/config/.env ]; then
+      MINIO_ROOT_USER="admin"
+      MINIO_ROOT_PASSWORD=$(openssl rand -base64 24 | tr -d '/+\n' | head -c 24)
+      echo "MINIO_ROOT_USER=${MINIO_ROOT_USER}" > /opt/minio/config/.env
+      echo "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" >> /opt/minio/config/.env
+    fi
 
-  # MinIO starten als Docker container
+  # MinIO starten als Docker container (alleen als deze nog niet draait)
   - |
-    source /opt/minio/config/.env
-    docker run -d \
-      --name minio \
-      --restart=always \
-      -p 9000:9000 \
-      -p 9001:9001 \
-      -e "MINIO_ROOT_USER=${MINIO_ROOT_USER}" \
-      -e "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" \
-      -v /opt/minio/data:/data \
-      minio/minio:latest server /data --console-address ":9001"
+    if ! docker ps -q --filter name=^minio$ | grep -q .; then
+      source /opt/minio/config/.env
+      docker run -d \
+        --name minio \
+        --restart=always \
+        -p 9000:9000 \
+        -p 9001:9001 \
+        -e "MINIO_ROOT_USER=${MINIO_ROOT_USER}" \
+        -e "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" \
+        -v /opt/minio/data:/data \
+        minio/minio:latest server /data --console-address ":9001"
+    fi
 
   # Docker directories voor admin user
   - mkdir -p /opt/docker/compose /opt/docker/data

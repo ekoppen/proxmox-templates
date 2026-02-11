@@ -135,14 +135,20 @@ runcmd:
   - git clone --depth 1 https://github.com/supabase/supabase /opt/supabase/repo
   - cp -r /opt/supabase/repo/docker /opt/supabase/docker
 
-  # Secrets genereren en .env aanmaken
-  - bash /opt/supabase/generate-env.sh
+  # Secrets genereren en .env aanmaken (alleen als er nog geen .env bestaat)
+  - |
+    if [ ! -f /opt/supabase/docker/.env ]; then
+      bash /opt/supabase/generate-env.sh
+    fi
 
   # Studio beschikbaar maken op poort 3000
   - [bash, -c, "cd /opt/supabase/docker && sed -i '/container_name: supabase-studio/a\\    ports:\\n      - 3000:3000' docker-compose.yml"]
 
-  # Supabase starten
-  - [bash, -c, "cd /opt/supabase/docker && docker compose pull && docker compose up -d"]
+  # Supabase starten (alleen als de containers nog niet draaien)
+  - |
+    if ! docker ps -q --filter name=supabase-studio | grep -q .; then
+      cd /opt/supabase/docker && docker compose pull && docker compose up -d
+    fi
 
   # Opslag voor admin user
   - mkdir -p /opt/docker/compose /opt/docker/data

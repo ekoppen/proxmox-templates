@@ -67,16 +67,18 @@ runcmd:
   # Appwrite directory aanmaken
   - mkdir -p /opt/appwrite
 
-  # Appwrite installatie via officieel install script (non-interactief)
+  # Appwrite installatie via officieel install script (alleen als nog niet geïnstalleerd)
   - |
-    cd /opt/appwrite
-    docker run --rm \
-      --volume /var/run/docker.sock:/var/run/docker.sock \
-      --volume "$(pwd)"/appwrite:/usr/src/code/appwrite:rw \
-      -e _APP_PORT=80 \
-      -e _APP_PORT_HTTPS=443 \
-      --entrypoint="install" \
-      appwrite/appwrite:latest
+    if ! docker ps -q --filter name=appwrite | grep -q .; then
+      cd /opt/appwrite
+      docker run --rm \
+        --volume /var/run/docker.sock:/var/run/docker.sock \
+        --volume "$(pwd)"/appwrite:/usr/src/code/appwrite:rw \
+        -e _APP_PORT=80 \
+        -e _APP_PORT_HTTPS=443 \
+        --entrypoint="install" \
+        appwrite/appwrite:latest
+    fi
 
   # Docker directories voor admin user
   - mkdir -p /opt/docker/compose /opt/docker/data
