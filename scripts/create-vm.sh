@@ -28,6 +28,7 @@ set -e
 
 # ── Configuratie ──────────────────────────────
 TEMPLATE_ID=9000                          # ID van je Debian template
+# shellcheck disable=SC2034  # STORAGE is used by resource validation
 STORAGE="local-lvm"                       # Storage voor VM disks
 SNIPPET_STORAGE="local"                   # Storage waar snippets staan
 SNIPPET_PATH="snippets"                   # Pad binnen storage
@@ -88,7 +89,8 @@ usage() {
     echo "  --disk SIZE    Disk resizen, bijv. 32G (standaard: niet resizen)"
     echo "  --vlan N       VLAN tag (standaard: geen)"
     echo "  --full         Full clone i.p.v. linked clone"
-    echo "  --start        VM direct starten na aanmaken"
+    echo "  --onboot       VM automatisch starten bij host reboot"
+    echo "  --start        VM direct starten na aanmaken (impliceert --onboot)"
     echo ""
     echo "Voorbeelden:"
     echo "  $0 web-01 110 webserver"
@@ -150,6 +152,7 @@ MEMORY=""
 DISK_SIZE="$DEFAULT_DISK_SIZE"
 VLAN_TAG=""
 START_AFTER=false
+ONBOOT=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -158,6 +161,7 @@ while [[ $# -gt 0 ]]; do
         --disk)    DISK_SIZE=$2;  shift 2 ;;
         --vlan)    VLAN_TAG=$2;   shift 2 ;;
         --full)    CLONE_TYPE="full"; shift ;;
+        --onboot)  ONBOOT=true;   shift ;;
         --start)   START_AFTER=true;  shift ;;
         *)         log_error "Onbekende optie: $1" ;;
     esac
@@ -168,12 +172,22 @@ get_defaults_for_type "$VM_TYPE"
 
 SNIPPET=$(get_snippet "$VM_TYPE")
 
+# ── Resource validatie ───────────────────────
+if [[ "$USE_REGISTRY" == true ]]; then
+    validate_disk_size "$DISK_SIZE"
+    check_host_memory "$MEMORY"
+    if [[ -n "$DISK_SIZE" ]]; then
+        DISK_GB=$(echo "$DISK_SIZE" | grep -oP '^[0-9]+')
+        check_storage_space "$STORAGE" "$DISK_GB"
+    fi
+fi
+
 # ── Validatie ─────────────────────────────────
 # Check of template bestaat
-qm status $TEMPLATE_ID &>/dev/null || log_error "Template $TEMPLATE_ID niet gevonden"
+qm status "$TEMPLATE_ID" &>/dev/null || log_error "Template $TEMPLATE_ID niet gevonden"
 
 # Check of VM ID al bestaat
-if qm status $VM_ID &>/dev/null 2>&1; then
+if qm status "$VM_ID" &>/dev/null 2>&1; then
     log_error "VM ID $VM_ID bestaat al"
 fi
 
@@ -200,50 +214,55 @@ echo ""
 # Clone
 log_info "Template $TEMPLATE_ID klonen..."
 if [[ "$CLONE_TYPE" == "full" ]]; then
-    qm clone $TEMPLATE_ID $VM_ID --name "$VM_NAME" --full 1
+    qm clone "$TEMPLATE_ID" "$VM_ID" --name "$VM_NAME" --full 1
 else
-    qm clone $TEMPLATE_ID $VM_ID --name "$VM_NAME" --full 0
+    qm clone "$TEMPLATE_ID" "$VM_ID" --name "$VM_NAME" --full 0
 fi
 log_success "VM gekloond"
 
 # Resources instellen
 log_info "Resources configureren..."
-qm set $VM_ID --cores "$CORES" --memory "$MEMORY"
+qm set "$VM_ID" --cores "$CORES" --memory "$MEMORY"
 log_success "CPU: ${CORES} cores, RAM: ${MEMORY}MB"
 
 # VLAN tag instellen indien opgegeven
 if [[ -n "$VLAN_TAG" ]]; then
     log_info "VLAN tag $VLAN_TAG instellen..."
-    CURRENT_NET=$(qm config $VM_ID | grep "^net0:" | cut -d' ' -f2)
-    qm set $VM_ID --net0 "${CURRENT_NET},tag=${VLAN_TAG}"
+    CURRENT_NET=$(qm config "$VM_ID" | grep "^net0:" | cut -d' ' -f2)
+    qm set "$VM_ID" --net0 "${CURRENT_NET},tag=${VLAN_TAG}"
     log_success "VLAN tag $VLAN_TAG ingesteld"
 fi
 
 # Cloud-init snippet koppelen
 log_info "Cloud-init configureren..."
-qm set $VM_ID --cicustom "user=${SNIPPET}"
-qm set $VM_ID --ipconfig0 ip=dhcp
+qm set "$VM_ID" --cicustom "user=${SNIPPET}"
+qm set "$VM_ID" --ipconfig0 ip=dhcp
 log_success "Snippet gekoppeld: $SNIPPET"
 
 # Disk resizen indien gewenst
 if [[ -n "$DISK_SIZE" ]]; then
     log_info "Disk resizen naar $DISK_SIZE..."
-    qm disk resize $VM_ID virtio0 "$DISK_SIZE"
+    qm disk resize "$VM_ID" virtio0 "$DISK_SIZE"
     log_success "Disk geresized naar $DISK_SIZE"
+fi
+
+# Onboot instellen (--start impliceert --onboot)
+if [[ "$START_AFTER" == true || "$ONBOOT" == true ]]; then
+    qm set "$VM_ID" --onboot 1
+    log_success "Onboot ingeschakeld"
 fi
 
 # Starten indien gewenst
 if [[ "$START_AFTER" == true ]]; then
-    qm set $VM_ID --onboot 1
     log_info "VM starten..."
-    qm start $VM_ID
-    log_success "VM gestart (onboot ingeschakeld)"
+    qm start "$VM_ID"
+    log_success "VM gestart"
 
     # Wacht op QEMU Guest Agent voor IP adres
     log_info "Wachten op IP adres (max 60s)..."
-    for i in $(seq 1 12); do
+    for _ in $(seq 1 12); do
         sleep 5
-        IP=$(qm guest cmd $VM_ID network-get-interfaces 2>/dev/null | \
+        IP=$(qm guest cmd "$VM_ID" network-get-interfaces 2>/dev/null | \
              grep -oP '"ip-address"\s*:\s*"\K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | \
              grep -v '^127\.' | head -1)
         if [[ -n "$IP" ]]; then
@@ -252,10 +271,19 @@ if [[ "$START_AFTER" == true ]]; then
     done
 
     # Hostname instellen via guest agent
-    if qm guest cmd $VM_ID ping 2>/dev/null; then
+    if qm guest cmd "$VM_ID" ping 2>/dev/null; then
         log_info "Hostname instellen op '$VM_NAME'..."
-        qm guest exec $VM_ID -- hostnamectl set-hostname "$VM_NAME" 2>/dev/null || true
+        qm guest exec "$VM_ID" -- hostnamectl set-hostname "$VM_NAME" 2>/dev/null || true
         log_success "Hostname ingesteld"
+    fi
+
+    # Service health check
+    if [[ -n "$IP" && "$USE_REGISTRY" == true ]]; then
+        HEALTH_URL=$(get_healthcheck "$VM_TYPE")
+        if [[ -n "$HEALTH_URL" ]]; then
+            HEALTH_URL="${HEALTH_URL//<IP>/$IP}"
+            wait_for_service "$HEALTH_URL" 120 || true
+        fi
     fi
 fi
 
@@ -270,7 +298,7 @@ if [[ "$USE_REGISTRY" == true ]]; then
         VM_NOTES="$VM_NOTES\n${POSTINFO//<IP>/$IP}"
     fi
 fi
-qm set $VM_ID --description "$(echo -e "$VM_NOTES")" 2>/dev/null || true
+qm set "$VM_ID" --description "$(echo -e "$VM_NOTES")" 2>/dev/null || true
 
 # ── Samenvatting ──────────────────────────────
 echo ""

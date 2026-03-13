@@ -120,8 +120,15 @@ input_advanced() {
     # Auto-start
     if confirm "Auto-start" "VM direct starten na aanmaken?"; then
         START_AFTER="--start"
+        ONBOOT=""
     else
         START_AFTER=""
+        # Alleen onboot vragen als --start niet gekozen is
+        if confirm "Onboot" "VM automatisch starten bij host reboot?"; then
+            ONBOOT="--onboot"
+        else
+            ONBOOT=""
+        fi
     fi
 }
 
@@ -132,6 +139,9 @@ show_confirmation() {
 
     local start_info="Nee"
     [[ -n "$START_AFTER" ]] && start_info="Ja"
+
+    local onboot_info="Nee"
+    [[ -n "$START_AFTER" || -n "$ONBOOT" ]] && onboot_info="Ja"
 
     local vlan_info="geen"
     [[ -n "$VLAN_TAG" ]] && vlan_info="$VLAN_TAG"
@@ -152,9 +162,10 @@ show_confirmation() {
   Clone:      $CLONE_TYPE
   VLAN:       $vlan_info
   Auto-start: $start_info
+  Onboot:     $onboot_info
 $postinfo_line
 
-Doorgaan?" 22 60
+Doorgaan?" 23 60
 }
 
 # ── VM aanmaken ───────────────────────────────
@@ -165,6 +176,7 @@ create_vm() {
     [[ -n "$DISK_SIZE" ]] && cmd_args+=("--disk" "$DISK_SIZE")
     [[ -n "$VLAN_TAG" ]] && cmd_args+=("--vlan" "$VLAN_TAG")
     [[ "$CLONE_TYPE" == "full" ]] && cmd_args+=("--full")
+    [[ -n "$ONBOOT" ]] && cmd_args+=("--onboot")
     [[ -n "$START_AFTER" ]] && cmd_args+=("--start")
 
     # Zoek create-vm.sh
@@ -413,6 +425,7 @@ create_vm_flow() {
         DISK_SIZE="${TYPE_DISK[$SELECTED_TYPE]}"
         CLONE_TYPE="linked"
         VLAN_TAG=""
+        ONBOOT=""
         START_AFTER="--start"
     fi
 
@@ -423,20 +436,111 @@ create_vm_flow() {
     create_vm
 }
 
+# ── VM Backup ────────────────────────────────
+backup_vm_menu() {
+    local backup_choice
+    backup_choice=$(menu_select "Backup" "Wat wil je backuppen?" 12 \
+        "specifiek" "Specifieke VM" \
+        "alles"     "Alle VMs") || return
+
+    local cmd_args=()
+
+    if [[ "$backup_choice" == "specifiek" ]]; then
+        local vmid
+        vmid=$(input_box "VM ID" "Geef het VM ID om te backuppen:" "") || return
+        [[ -z "$vmid" ]] && return
+        cmd_args+=("--vmid" "$vmid")
+    else
+        cmd_args+=("--all")
+    fi
+
+    local mode
+    mode=$(menu_select "Backup Modus" "Kies backup modus:" 13 \
+        "snapshot" "Snapshot (aanbevolen, geen downtime)" \
+        "suspend"  "Suspend (VM pauzeert kort)" \
+        "stop"     "Stop (VM stopt, meest consistent)") || return
+    cmd_args+=("--mode" "$mode")
+
+    # Zoek backup-vm.sh
+    local backup_script
+    if [[ -f "$SCRIPT_DIR/backup-vm.sh" ]]; then
+        backup_script="$SCRIPT_DIR/backup-vm.sh"
+    elif [[ -f "/root/scripts/backup-vm.sh" ]]; then
+        backup_script="/root/scripts/backup-vm.sh"
+    else
+        msg_info "Fout" "backup-vm.sh niet gevonden"
+        return
+    fi
+
+    clear
+    show_banner
+    echo -e "${BLUE}VM Backup starten...${NC}"
+    echo ""
+
+    bash "$backup_script" "${cmd_args[@]}"
+    echo ""
+    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    read -r
+}
+
+# ── VMs Updaten ──────────────────────────────
+update_vms_menu() {
+    local update_choice
+    update_choice=$(menu_select "VMs Updaten" "Wat wil je updaten?" 12 \
+        "specifiek" "Specifieke VM" \
+        "alles"     "Alle draaiende VMs") || return
+
+    local cmd_args=()
+
+    if [[ "$update_choice" == "specifiek" ]]; then
+        local vmid
+        vmid=$(input_box "VM ID" "Geef het VM ID om te updaten:" "") || return
+        [[ -z "$vmid" ]] && return
+        cmd_args+=("--vmid" "$vmid")
+    else
+        cmd_args+=("--all")
+    fi
+
+    # Zoek update-vms.sh
+    local update_script
+    if [[ -f "$SCRIPT_DIR/update-vms.sh" ]]; then
+        update_script="$SCRIPT_DIR/update-vms.sh"
+    elif [[ -f "/root/scripts/update-vms.sh" ]]; then
+        update_script="/root/scripts/update-vms.sh"
+    else
+        msg_info "Fout" "update-vms.sh niet gevonden"
+        return
+    fi
+
+    clear
+    show_banner
+    echo -e "${BLUE}VMs bijwerken...${NC}"
+    echo ""
+
+    bash "$update_script" "${cmd_args[@]}"
+    echo ""
+    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    read -r
+}
+
 # ── Hoofdmenu ─────────────────────────────────
 main_menu() {
     while true; do
         local choice
-        choice=$(menu_select "Hoofdmenu" "Wat wil je doen?" 14 \
-            "aanmaken"   "VM aanmaken" \
-            "overzicht"  "VM overzicht" \
+        choice=$(menu_select "Hoofdmenu" "Wat wil je doen?" 18 \
+            "aanmaken"    "VM aanmaken" \
+            "overzicht"   "VM overzicht" \
             "verwijderen" "VM verwijderen" \
-            "afsluiten"  "Menu sluiten") || break
+            "backup"      "VM backup" \
+            "updaten"     "VMs bijwerken (apt upgrade)" \
+            "afsluiten"   "Menu sluiten") || break
 
         case "$choice" in
             aanmaken)    create_vm_flow ;;
             overzicht)   show_vm_list ;;
             verwijderen) delete_vm_menu ;;
+            backup)      backup_vm_menu ;;
+            updaten)     update_vms_menu ;;
             afsluiten)   break ;;
         esac
     done

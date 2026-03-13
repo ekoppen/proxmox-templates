@@ -24,12 +24,12 @@ FORCE=false
 [[ "$2" == "--force" ]] && FORCE=true
 
 # Check of VM bestaat
-qm status $VM_ID &>/dev/null 2>&1 || { echo -e "${RED}VM $VM_ID niet gevonden${NC}"; exit 1; }
+qm status "$VM_ID" &>/dev/null 2>&1 || { echo -e "${RED}VM $VM_ID niet gevonden${NC}"; exit 1; }
 
 # Haal info op
-NAME=$(qm config $VM_ID 2>/dev/null | grep "^name:" | awk '{print $2}')
-STATUS=$(qm status $VM_ID 2>/dev/null | awk '{print $2}')
-IS_TEMPLATE=$(qm config $VM_ID 2>/dev/null | grep "^template:" | awk '{print $2}')
+NAME=$(qm config "$VM_ID" 2>/dev/null | grep "^name:" | awk '{print $2}')
+STATUS=$(qm status "$VM_ID" 2>/dev/null | awk '{print $2}')
+IS_TEMPLATE=$(qm config "$VM_ID" 2>/dev/null | grep "^template:" | awk '{print $2}')
 
 # Bescherming tegen per-ongeluk template verwijderen
 if [[ "$IS_TEMPLATE" == "1" ]]; then
@@ -47,19 +47,19 @@ echo -e "  Status: $STATUS"
 echo ""
 
 if [[ "$FORCE" != true ]]; then
-    read -p "Weet je het zeker? (ja/nee): " CONFIRM
+    read -rp "Weet je het zeker? (ja/nee): " CONFIRM
     [[ "$CONFIRM" != "ja" ]] && { echo "Geannuleerd."; exit 0; }
 fi
 
 # Stop VM als die draait
 if [[ "$STATUS" == "running" ]]; then
     echo -e "${BLUE}[INFO]${NC} VM stoppen..."
-    qm stop $VM_ID
+    qm stop "$VM_ID"
     sleep 3
 fi
 
 # Verwijder VM
 echo -e "${BLUE}[INFO]${NC} VM verwijderen..."
-qm destroy $VM_ID --purge
+qm destroy "$VM_ID" --purge
 echo -e "${GREEN}[OK]${NC}   VM $VM_ID ($NAME) verwijderd"
 echo ""

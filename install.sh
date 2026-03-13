@@ -76,9 +76,11 @@ echo -e "${GREEN}  ✓ pve-menu commando beschikbaar${NC}"
 # 7. PATH toevoegen als dat nog niet is gedaan
 echo -e "${BLUE}[7/7]${NC} PATH configureren..."
 if ! grep -q "$INSTALL_DIR" /root/.bashrc 2>/dev/null; then
-    echo "" >> /root/.bashrc
-    echo "# Proxmox VM scripts" >> /root/.bashrc
-    echo "export PATH=\"\$PATH:$INSTALL_DIR\"" >> /root/.bashrc
+    {
+        echo ""
+        echo "# Proxmox VM scripts"
+        echo "export PATH=\"\$PATH:$INSTALL_DIR\""
+    } >> /root/.bashrc
     echo -e "${GREEN}  ✓ $INSTALL_DIR toegevoegd aan PATH${NC}"
 else
     echo -e "${GREEN}  ✓ PATH was al geconfigureerd${NC}"
@@ -90,10 +92,10 @@ echo -e "${GREEN}  Installatie voltooid!${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
 echo "Geïnstalleerde snippets:"
-ls -1 "$SNIPPET_DIR/"*.yaml 2>/dev/null | while read f; do echo "  $(basename "$f")"; done
+ls -1 "$SNIPPET_DIR/"*.yaml 2>/dev/null | while read -r f; do echo "  $(basename "$f")"; done
 echo ""
 echo "Geïnstalleerde scripts:"
-ls -1 "$INSTALL_DIR/"*.sh 2>/dev/null | while read f; do echo "  $(basename "$f")"; done
+ls -1 "$INSTALL_DIR/"*.sh 2>/dev/null | while read -r f; do echo "  $(basename "$f")"; done
 echo ""
 echo "Gebruik (na 'source ~/.bashrc' of opnieuw inloggen):"
 echo ""

@@ -137,7 +137,7 @@ if qm status "$TEMPLATE_ID" &>/dev/null 2>&1; then
     echo -e "  ${YELLOW}[O]${NC} Overschrijven (verwijder bestaande VM eerst)"
     echo -e "  ${YELLOW}[A]${NC} Afbreken"
     echo ""
-    read -p "  Keuze [A]: " OVERWRITE_CHOICE
+    read -rp "  Keuze [A]: " OVERWRITE_CHOICE
     OVERWRITE_CHOICE=${OVERWRITE_CHOICE:-A}
 
     case $OVERWRITE_CHOICE in
@@ -170,7 +170,7 @@ if [[ -f "$IMAGE_FILE" ]]; then
         echo -e "  ${YELLOW}[H]${NC} Hergebruiken (sla download over)"
         echo -e "  ${YELLOW}[O]${NC} Opnieuw downloaden"
         echo ""
-        read -p "  Keuze [H]: " IMAGE_CHOICE
+        read -rp "  Keuze [H]: " IMAGE_CHOICE
         IMAGE_CHOICE=${IMAGE_CHOICE:-H}
 
         case $IMAGE_CHOICE in

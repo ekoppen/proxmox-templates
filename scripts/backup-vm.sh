@@ -1,0 +1,188 @@
+#!/bin/bash
+
+# ============================================
+# BACKUP-VM.SH
+# VM backup naar PBS (Proxmox Backup Server)
+#
+# Gebruik:
+#   ./backup-vm.sh --vmid 110
+#   ./backup-vm.sh --all
+#   ./backup-vm.sh --vmid 110 --storage pbs-store --mode snapshot
+#
+# Opties:
+#   --vmid N       Backup specifieke VM
+#   --all          Backup alle VMs
+#   --storage NAAM PBS storage (standaard: auto-detect)
+#   --mode MODE    snapshot|suspend|stop (standaard: snapshot)
+#   --help         Toon hulptekst
+# ============================================
+
+set -e
+
+# ── Libraries laden (optioneel) ───────────────
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+USE_LIB=false
+
+for lib_path in "$SCRIPT_DIR/../lib" "/root/lib"; do
+    if [[ -f "$lib_path/common.sh" ]]; then
+        source "$lib_path/common.sh"
+        USE_LIB=true
+        break
+    fi
+done
+
+# Fallback kleuren en functies als lib niet beschikbaar
+if [[ "$USE_LIB" != true ]]; then
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+    log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+    log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
+    log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
+    log_error()   { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
+fi
+
+# ── Functies ──────────────────────────────────
+usage() {
+    echo -e "${BLUE}Proxmox VM Backup${NC}"
+    echo ""
+    echo "Gebruik: $0 [opties]"
+    echo ""
+    echo "Opties:"
+    echo "  --vmid N       Backup specifieke VM"
+    echo "  --all          Backup alle VMs"
+    echo "  --storage NAAM Backup storage (standaard: auto-detect)"
+    echo "  --mode MODE    snapshot|suspend|stop (standaard: snapshot)"
+    echo "  --help         Toon deze hulptekst"
+    echo ""
+    echo "Voorbeelden:"
+    echo "  $0 --vmid 110"
+    echo "  $0 --all --mode snapshot"
+    echo "  $0 --vmid 110 --storage pbs-store"
+    exit 0
+}
+
+# Auto-detect backup storage (PBS of andere backup storage)
+detect_backup_storage() {
+    local storage
+    # Probeer eerst PBS
+    storage=$(pvesm status 2>/dev/null | awk '$2 == "pbs" {print $1}' | head -1)
+    # Fallback naar elke storage met backup content
+    if [[ -z "$storage" ]]; then
+        storage=$(pvesm status 2>/dev/null | awk '$2 != "dir" && $2 != "lvmthin" && $2 != "lvm" {print $1}' | head -1)
+    fi
+    echo "$storage"
+}
+
+# Backup een enkele VM
+backup_vm() {
+    local vmid=$1 storage=$2 mode=$3
+    local name
+    name=$(qm config "$vmid" 2>/dev/null | grep "^name:" | awk '{print $2}')
+
+    log_info "[$vmid] $name - backup starten (modus: $mode)..."
+    if vzdump "$vmid" --storage "$storage" --mode "$mode" --compress zstd --notes-template "{{guestname}}" 2>&1; then
+        log_success "[$vmid] $name - backup voltooid"
+        return 0
+    else
+        log_warn "[$vmid] $name - backup mislukt"
+        return 1
+    fi
+}
+
+# Alle VM IDs ophalen (exclusief templates)
+get_all_vms() {
+    qm list 2>/dev/null | tail -n +2 | while read -r line; do
+        local vmid
+        vmid=$(echo "$line" | awk '{print $1}')
+        local is_tpl
+        is_tpl=$(qm config "$vmid" 2>/dev/null | grep "^template:" | awk '{print $2}')
+        [[ "$is_tpl" != "1" ]] && echo "$vmid"
+    done
+}
+
+# ── Argumenten verwerken ──────────────────────
+[[ $# -eq 0 ]] && usage
+
+VM_ID=""
+ALL_VMS=false
+BACKUP_STORAGE=""
+BACKUP_MODE="snapshot"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --vmid)    VM_ID=$2;          shift 2 ;;
+        --all)     ALL_VMS=true;      shift ;;
+        --storage) BACKUP_STORAGE=$2; shift 2 ;;
+        --mode)    BACKUP_MODE=$2;    shift 2 ;;
+        --help)    usage ;;
+        *)         log_error "Onbekende optie: $1 (gebruik --help)" ;;
+    esac
+done
+
+# Validatie
+if [[ "$ALL_VMS" != true && -z "$VM_ID" ]]; then
+    log_error "Geef --vmid N of --all op"
+fi
+
+if [[ -n "$BACKUP_MODE" && ! "$BACKUP_MODE" =~ ^(snapshot|suspend|stop)$ ]]; then
+    log_error "Ongeldige modus: $BACKUP_MODE (kies snapshot, suspend of stop)"
+fi
+
+# Storage detectie
+if [[ -z "$BACKUP_STORAGE" ]]; then
+    BACKUP_STORAGE=$(detect_backup_storage)
+    if [[ -z "$BACKUP_STORAGE" ]]; then
+        log_error "Geen backup storage gevonden. Geef storage op met --storage"
+    fi
+    log_info "Auto-detected backup storage: $BACKUP_STORAGE"
+fi
+
+# ── Backup uitvoeren ────────────────────────
+echo ""
+echo -e "${BLUE}════════════════════════════════════════${NC}"
+echo -e "${BLUE}  VM Backup${NC}"
+echo -e "${BLUE}════════════════════════════════════════${NC}"
+echo ""
+log_info "Storage:  $BACKUP_STORAGE"
+log_info "Modus:    $BACKUP_MODE"
+echo ""
+
+TOTAL=0
+SUCCESS=0
+FAILED=0
+
+if [[ "$ALL_VMS" == true ]]; then
+    while read -r vmid; do
+        [[ -z "$vmid" ]] && continue
+        TOTAL=$((TOTAL + 1))
+        if backup_vm "$vmid" "$BACKUP_STORAGE" "$BACKUP_MODE"; then
+            SUCCESS=$((SUCCESS + 1))
+        else
+            FAILED=$((FAILED + 1))
+        fi
+        echo ""
+    done < <(get_all_vms)
+else
+    # Check of VM bestaat
+    qm status "$VM_ID" &>/dev/null 2>&1 || log_error "VM $VM_ID niet gevonden"
+    TOTAL=1
+    if backup_vm "$VM_ID" "$BACKUP_STORAGE" "$BACKUP_MODE"; then
+        SUCCESS=1
+    else
+        FAILED=1
+    fi
+fi
+
+# ── Samenvatting ──────────────────────────────
+echo ""
+echo -e "${GREEN}════════════════════════════════════════${NC}"
+echo -e "${GREEN}  Backup voltooid${NC}"
+echo -e "${GREEN}════════════════════════════════════════${NC}"
+echo ""
+echo -e "  Totaal:    $TOTAL"
+echo -e "  Gelukt:    ${GREEN}$SUCCESS${NC}"
+[[ $FAILED -gt 0 ]] && echo -e "  Mislukt:   ${RED}$FAILED${NC}"
+echo ""

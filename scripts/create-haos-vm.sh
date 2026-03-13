@@ -22,7 +22,8 @@
 #   --memory N       RAM in MB (standaard: 2048)
 #   --disk SIZE      Disk grootte (standaard: 32G)
 #   --vlan N         VLAN tag (standaard: geen)
-#   --start          VM direct starten
+#   --onboot         VM automatisch starten bij host reboot
+#   --start          VM direct starten (impliceert --onboot)
 #   --help           Toon deze hulptekst
 # ============================================
 
@@ -83,7 +84,8 @@ usage() {
     echo "  --memory N       RAM in MB (standaard: $DEFAULT_MEMORY)"
     echo "  --disk SIZE      Disk grootte (standaard: $DEFAULT_DISK)"
     echo "  --vlan N         VLAN tag (standaard: geen)"
-    echo "  --start          VM direct starten"
+    echo "  --onboot         VM automatisch starten bij host reboot"
+    echo "  --start          VM direct starten (impliceert --onboot)"
     echo "  --help           Toon deze hulptekst"
     echo ""
     echo "Voorbeelden:"
@@ -129,6 +131,7 @@ CORES=$DEFAULT_CORES
 MEMORY=$DEFAULT_MEMORY
 DISK_SIZE=$DEFAULT_DISK
 START_AFTER=false
+ONBOOT=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -139,6 +142,7 @@ while [[ $# -gt 0 ]]; do
         --cores)   CORES=$2;         shift 2 ;;
         --memory)  MEMORY=$2;        shift 2 ;;
         --disk)    DISK_SIZE=$2;     shift 2 ;;
+        --onboot)  ONBOOT=true;      shift ;;
         --start)   START_AFTER=true; shift ;;
         --help)    usage ;;
         *)         log_error "Onbekende optie: $1 (gebruik --help voor opties)" ;;
@@ -217,6 +221,14 @@ else
     log_success "Image uitgepakt: $IMAGE_FILE"
 fi
 
+# ── Resource validatie ───────────────────────
+if [[ "$USE_LIB" == true ]]; then
+    validate_disk_size "$DISK_SIZE"
+    check_host_memory "$MEMORY"
+    DISK_GB=$(echo "$DISK_SIZE" | grep -oP '^[0-9]+')
+    check_storage_space "$STORAGE" "$DISK_GB"
+fi
+
 # ── Stap 6: VM aanmaken ──────────────────────
 log_info "[6/8] VM aanmaken (q35 + UEFI)..."
 
@@ -288,17 +300,22 @@ log_info "Tijdelijke bestanden opruimen..."
 rm -f "$IMAGE_XZ" "$IMAGE_FILE"
 log_success "Opgeruimd"
 
+# ── Onboot instellen ────────────────────────
+if [[ "$START_AFTER" == true || "$ONBOOT" == true ]]; then
+    qm set "$VM_ID" --onboot 1
+    log_success "Onboot ingeschakeld"
+fi
+
 # ── Optioneel starten ────────────────────────
 IP=""
 if [[ "$START_AFTER" == true ]]; then
-    qm set "$VM_ID" --onboot 1
     log_info "VM starten..."
     qm start "$VM_ID"
-    log_success "VM gestart (onboot ingeschakeld)"
+    log_success "VM gestart"
 
     # Wacht op IP adres via QEMU Guest Agent
     log_info "Wachten op IP adres (max 120s)..."
-    for i in $(seq 1 24); do
+    for _ in $(seq 1 24); do
         sleep 5
         IP=$(qm guest cmd "$VM_ID" network-get-interfaces 2>/dev/null | \
              grep -oP '"ip-address"\s*:\s*"\K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | \

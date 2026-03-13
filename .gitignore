@@ -19,3 +19,6 @@ secrets/
 
 # Tar archives
 *.tar.gz
+
+# Claude Code
+.claude/

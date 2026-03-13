@@ -68,6 +68,32 @@ jobs:
           echo ""
           echo "✓ Alle scripts zijn geldig"
 
+      - name: Shellcheck
+        run: |
+          apt-get update -qq && apt-get install -y -qq shellcheck > /dev/null
+          echo "=== Running shellcheck ==="
+          ERRORS=0
+          for file in scripts/*.sh lib/*.sh install.sh setup.sh; do
+            if [[ -f "$file" ]]; then
+              echo -n "  Checking $file... "
+              if shellcheck -x -s bash "$file" 2>/dev/null; then
+                echo "✓"
+              else
+                echo "✗"
+                shellcheck -x -s bash "$file"
+                ERRORS=$((ERRORS + 1))
+              fi
+            fi
+          done
+
+          if [[ $ERRORS -gt 0 ]]; then
+            echo ""
+            echo "✗ $ERRORS scripts met shellcheck fouten"
+            exit 1
+          fi
+          echo ""
+          echo "✓ Alle scripts passeren shellcheck"
+
       - name: Security check - geen secrets in configs
         run: |
           echo "=== Security scan ==="

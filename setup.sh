@@ -8,6 +8,7 @@
 # Gebruik:
 #   bash setup.sh
 #   bash setup.sh --ssh-key "ssh-ed25519 AAAA..."
+#   bash setup.sh --ssh-key "key1" --ssh-key "key2"
 # ============================================
 
 set -e
@@ -17,15 +18,16 @@ BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
+# shellcheck disable=SC2034
 BOLD='\033[1m'
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── Argument parsing ──────────────────────────
-SSH_KEY_ARG=""
+SSH_KEY_ARGS=()
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --ssh-key) SSH_KEY_ARG="$2"; shift 2 ;;
+        --ssh-key) SSH_KEY_ARGS+=("$2"); shift 2 ;;
         *)         shift ;;
     esac
 done
@@ -46,20 +48,26 @@ echo -e "${BOLD}Stap 1/3: SSH Public Key${NC}"
 echo -e "─────────────────────────────────────────"
 echo ""
 
-SSH_KEY=""
+SSH_KEYS=()
 
-# Check of er een key via argument is meegegeven
-if [[ -n "$SSH_KEY_ARG" ]]; then
-    SSH_KEY="$SSH_KEY_ARG"
-    echo -e "  SSH key via argument: ${GREEN}✓${NC}"
-    echo "  ${SSH_KEY:0:50}..."
+# Check of er keys via argument zijn meegegeven
+if [[ ${#SSH_KEY_ARGS[@]} -gt 0 ]]; then
+    for key in "${SSH_KEY_ARGS[@]}"; do
+        if [[ "$key" =~ ^ssh-(ed25519|rsa|ecdsa)|^ecdsa-sha2 ]]; then
+            SSH_KEYS+=("$key")
+            echo -e "  SSH key via argument: ${GREEN}✓${NC}"
+            echo "  ${key:0:50}..."
+        else
+            echo -e "  ${RED}Ongeldige key overgeslagen: ${key:0:30}...${NC}"
+        fi
+    done
     echo ""
 else
     # Zoek automatisch naar lokale SSH keys
     FOUND_KEYS=()
     KEY_FILES=()
 
-    for keyfile in ~/.ssh/id_ed25519.pub ~/.ssh/id_rsa.pub ~/.ssh/id_ecdsa.pub; do
+    for keyfile in ~/.ssh/id_*.pub; do
         if [[ -f "$keyfile" ]]; then
             FOUND_KEYS+=("$(cat "$keyfile")")
             KEY_FILES+=("$keyfile")
@@ -78,31 +86,46 @@ else
             echo ""
         done
 
+        echo -e "  ${GREEN}[A]${NC} Alle keys gebruiken"
         echo -e "  ${GREEN}[P]${NC} Plak een andere key"
         echo -e "  ${YELLOW}[S]${NC} Sla over (later handmatig invullen)"
         echo ""
-        read -p "  Keuze [1]: " KEY_CHOICE
+        read -rp "  Keuze [1] (of meerdere nummers, bijv. 1,2): " KEY_CHOICE
         KEY_CHOICE=${KEY_CHOICE:-1}
 
         case $KEY_CHOICE in
-            [0-9])
-                IDX=$((KEY_CHOICE - 1))
-                if [[ $IDX -ge 0 && $IDX -lt ${#FOUND_KEYS[@]} ]]; then
-                    SSH_KEY="${FOUND_KEYS[$IDX]}"
-                    echo -e "  ${GREEN}✓${NC} Key geselecteerd: ${KEY_FILES[$IDX]}"
-                else
-                    echo -e "  ${RED}Ongeldige keuze${NC}"
-                fi
+            [Aa])
+                for i in "${!FOUND_KEYS[@]}"; do
+                    SSH_KEYS+=("${FOUND_KEYS[$i]}")
+                done
+                echo -e "  ${GREEN}✓${NC} Alle ${#FOUND_KEYS[@]} keys geselecteerd"
                 ;;
             [Pp])
                 echo ""
                 echo "  Plak je volledige SSH public key:"
                 echo "  (begint met ssh-ed25519, ssh-rsa, of ecdsa-...)"
                 echo ""
-                read -r SSH_KEY
+                read -r PASTED_KEY
+                [[ -n "$PASTED_KEY" ]] && SSH_KEYS+=("$PASTED_KEY")
                 ;;
             [Ss])
                 echo -e "  ${YELLOW}Overgeslagen - pas YOUR_SSH_PUBLIC_KEY_HERE later aan${NC}"
+                ;;
+            *)
+                # Verwerk komma-gescheiden nummers (bijv. "1,2" of enkel "1")
+                IFS=',' read -ra SELECTIONS <<< "$KEY_CHOICE"
+                for sel in "${SELECTIONS[@]}"; do
+                    sel=$(echo "$sel" | tr -d ' ')
+                    if [[ "$sel" =~ ^[0-9]+$ ]]; then
+                        IDX=$((sel - 1))
+                        if [[ $IDX -ge 0 && $IDX -lt ${#FOUND_KEYS[@]} ]]; then
+                            SSH_KEYS+=("${FOUND_KEYS[$IDX]}")
+                            echo -e "  ${GREEN}✓${NC} Key geselecteerd: ${KEY_FILES[$IDX]}"
+                        else
+                            echo -e "  ${RED}Ongeldige keuze: $sel${NC}"
+                        fi
+                    fi
+                done
                 ;;
         esac
     else
@@ -113,21 +136,22 @@ else
         echo -e "  ${GREEN}[G]${NC} Een nieuwe key genereren"
         echo -e "  ${YELLOW}[S]${NC} Overslaan"
         echo ""
-        read -p "  Keuze [P]: " KEY_CHOICE
+        read -rp "  Keuze [P]: " KEY_CHOICE
         KEY_CHOICE=${KEY_CHOICE:-P}
 
         case $KEY_CHOICE in
             [Pp])
                 echo ""
                 echo "  Plak je volledige SSH public key:"
-                read -r SSH_KEY
+                read -r PASTED_KEY
+                [[ -n "$PASTED_KEY" ]] && SSH_KEYS+=("$PASTED_KEY")
                 ;;
             [Gg])
                 echo ""
-                read -p "  E-mail of comment voor de key [$(whoami)@$(hostname)]: " KEY_COMMENT
+                read -rp "  E-mail of comment voor de key [$(whoami)@$(hostname)]: " KEY_COMMENT
                 KEY_COMMENT=${KEY_COMMENT:-"$(whoami)@$(hostname)"}
                 ssh-keygen -t ed25519 -C "$KEY_COMMENT" -f ~/.ssh/id_ed25519 -N ""
-                SSH_KEY=$(cat ~/.ssh/id_ed25519.pub)
+                SSH_KEYS+=("$(cat ~/.ssh/id_ed25519.pub)")
                 echo ""
                 echo -e "  ${GREEN}✓${NC} Nieuwe key gegenereerd: ~/.ssh/id_ed25519.pub"
                 echo ""
@@ -141,15 +165,31 @@ else
     fi
 fi
 
-# Validatie SSH key
-if [[ -n "$SSH_KEY" ]]; then
-    if [[ "$SSH_KEY" =~ ^ssh-(ed25519|rsa|ecdsa)|^ecdsa-sha2 ]]; then
-        # Vervang in alle YAML bestanden
-        find "$SCRIPT_DIR/snippets" -name "*.yaml" -exec \
-            sed -i "s|YOUR_SSH_PUBLIC_KEY_HERE|$SSH_KEY|g" {} \;
-        echo -e "  ${GREEN}✓ SSH key ingesteld in alle cloud-init configs${NC}"
+# Validatie en installatie SSH keys
+if [[ ${#SSH_KEYS[@]} -gt 0 ]]; then
+    VALID_KEYS=()
+    for key in "${SSH_KEYS[@]}"; do
+        if [[ "$key" =~ ^ssh-(ed25519|rsa|ecdsa)|^ecdsa-sha2 ]]; then
+            VALID_KEYS+=("$key")
+        else
+            echo -e "  ${RED}Key overgeslagen (ongeldig): ${key:0:30}...${NC}"
+        fi
+    done
+
+    if [[ ${#VALID_KEYS[@]} -gt 0 ]]; then
+        # Bouw YAML-regels: eerste key vervangt placeholder, extra keys worden toegevoegd
+        FIRST_KEY="${VALID_KEYS[0]}"
+        for file in "$SCRIPT_DIR"/snippets/*.yaml; do
+            # Vervang placeholder met eerste key
+            sed -i "s|YOUR_SSH_PUBLIC_KEY_HERE|$FIRST_KEY|g" "$file"
+            # Voeg extra keys toe na de eerste key regel
+            for ((i=1; i<${#VALID_KEYS[@]}; i++)); do
+                sed -i "/$(echo "$FIRST_KEY" | head -c 40)/a\\      - ${VALID_KEYS[$i]}" "$file"
+            done
+        done
+        echo -e "  ${GREEN}✓ ${#VALID_KEYS[@]} SSH key(s) ingesteld in alle cloud-init configs${NC}"
     else
-        echo -e "  ${RED}Key lijkt geen geldige SSH public key te zijn${NC}"
+        echo -e "  ${RED}Geen geldige SSH keys gevonden${NC}"
         echo -e "  ${YELLOW}De placeholder YOUR_SSH_PUBLIC_KEY_HERE blijft staan${NC}"
     fi
 fi
@@ -175,7 +215,7 @@ if command -v qm &>/dev/null; then
     echo ""
 fi
 
-read -p "  VM ID van je Debian cloud-init template [9000]: " TEMPLATE_ID
+read -rp "  VM ID van je Debian cloud-init template [9000]: " TEMPLATE_ID
 TEMPLATE_ID=${TEMPLATE_ID:-9000}
 sed -i "s|^TEMPLATE_ID=.*|TEMPLATE_ID=$TEMPLATE_ID|" "$SCRIPT_DIR/scripts/create-vm.sh"
 echo -e "  ${GREEN}✓ Template ID: $TEMPLATE_ID${NC}"
@@ -191,7 +231,7 @@ if command -v qm &>/dev/null; then
         echo -e "  ${GREEN}[A]${NC} Automatisch aanmaken (Debian 12 cloud image)"
         echo -e "  ${YELLOW}[D]${NC} Doorgaan zonder template"
         echo ""
-        read -p "  Keuze [A]: " TPL_CHOICE
+        read -rp "  Keuze [A]: " TPL_CHOICE
         TPL_CHOICE=${TPL_CHOICE:-A}
 
         case $TPL_CHOICE in
@@ -206,8 +246,7 @@ if command -v qm &>/dev/null; then
 
                 if [[ -n "$CREATE_TPL" ]]; then
                     echo ""
-                    bash "$CREATE_TPL" --id "$TEMPLATE_ID" --storage "${STORAGE:-local-lvm}"
-                    if [[ $? -eq 0 ]]; then
+                    if bash "$CREATE_TPL" --id "$TEMPLATE_ID" --storage "${STORAGE:-local-lvm}"; then
                         echo -e "  ${GREEN}✓ Template $TEMPLATE_ID succesvol aangemaakt${NC}"
                     else
                         echo -e "  ${RED}Template aanmaken mislukt. Je kunt dit later handmatig doen met:${NC}"
@@ -240,7 +279,7 @@ if command -v pvesm &>/dev/null; then
     echo ""
 fi
 
-read -p "  Storage voor VM disks [local-lvm]: " STORAGE
+read -rp "  Storage voor VM disks [local-lvm]: " STORAGE
 STORAGE=${STORAGE:-local-lvm}
 sed -i "s|^STORAGE=.*|STORAGE=\"$STORAGE\"|" "$SCRIPT_DIR/scripts/create-vm.sh"
 echo -e "  ${GREEN}✓ Storage: $STORAGE${NC}"
@@ -252,10 +291,10 @@ echo -e "${GREEN}║  Setup voltooid!                        ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
 echo ""
 echo "  Configuratie:"
-if [[ -n "$SSH_KEY" ]]; then
-    echo -e "    SSH Key:     ${GREEN}ingesteld${NC}"
+if [[ ${#SSH_KEYS[@]} -gt 0 ]]; then
+    echo -e "    SSH Keys:    ${GREEN}${#VALID_KEYS[@]} key(s) ingesteld${NC}"
 else
-    echo -e "    SSH Key:     ${YELLOW}niet ingesteld (handmatig aanpassen)${NC}"
+    echo -e "    SSH Keys:    ${YELLOW}niet ingesteld (handmatig aanpassen)${NC}"
 fi
 echo "    Template ID: $TEMPLATE_ID"
 echo "    Storage:     $STORAGE"

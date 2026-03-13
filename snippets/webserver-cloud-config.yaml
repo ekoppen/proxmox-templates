@@ -65,6 +65,20 @@ runcmd:
   - systemctl enable certbot.timer
   - systemctl start certbot.timer
 
+  # MOTD met toegangsinformatie
+  - |
+    IP=$(hostname -I | awk '{print $1}')
+    cat > /etc/motd << EOF
+
+    ╔══════════════════════════════════════════╗
+    ║  Webserver                               ║
+    ╠══════════════════════════════════════════╣
+    ║  SSH:   ssh admin@${IP}                  ║
+    ║  Nginx: http://${IP}                     ║
+    ╚══════════════════════════════════════════╝
+
+    EOF
+
 write_files:
   - path: /etc/nginx/sites-available/default
     content: |

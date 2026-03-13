@@ -19,10 +19,11 @@ declare -A TYPE_MEMORY
 declare -A TYPE_DISK
 declare -A TYPE_SNIPPETS
 declare -A TYPE_POSTINFO
+declare -A TYPE_HEALTHCHECK
 TYPE_ORDER=()
 
 # ── Registry functie ─────────────────────────
-# register_type <key> <label> <beschrijving> <cores> <memory> <disk> <snippet> [post-info]
+# register_type <key> <label> <beschrijving> <cores> <memory> <disk> <snippet> [post-info] [healthcheck-url]
 register_type() {
     local key="$1"
     local label="$2"
@@ -32,14 +33,17 @@ register_type() {
     local disk="$6"
     local snippet="$7"
     local postinfo="${8:-}"
+    local healthcheck="${9:-}"
 
     TYPE_LABELS["$key"]="$label"
+    # shellcheck disable=SC2034
     TYPE_DESCRIPTIONS["$key"]="$desc"
     TYPE_CORES["$key"]="$cores"
     TYPE_MEMORY["$key"]="$memory"
     TYPE_DISK["$key"]="$disk"
     TYPE_SNIPPETS["$key"]="$snippet"
     TYPE_POSTINFO["$key"]="$postinfo"
+    TYPE_HEALTHCHECK["$key"]="$healthcheck"
     TYPE_ORDER+=("$key")
 }
 
@@ -49,56 +53,64 @@ register_type "base" \
     "Base Server" \
     "Kale Debian server met basis tools" \
     2 2048 "" \
-    "base-cloud-config.yaml"
+    "base-cloud-config.yaml" \
+    "" ""
 
 register_type "docker" \
     "Docker Server" \
     "Docker + Compose + Portainer" \
     4 4096 "50G" \
     "docker-cloud-config.yaml" \
-    "Portainer: https://<IP>:9443"
+    "Portainer: https://<IP>:9443" \
+    "https://<IP>:9443"
 
 register_type "webserver" \
     "Webserver" \
     "Nginx + Certbot + UFW + Fail2ban" \
     2 2048 "20G" \
     "webserver-cloud-config.yaml" \
-    "Nginx: http://<IP>"
+    "Nginx: http://<IP>" \
+    "http://<IP>"
 
 register_type "homelab" \
     "Homelab Server" \
     "Docker + NFS + Portainer + homelab tools" \
     4 4096 "50G" \
     "homelab-cloud-config.yaml" \
-    "Portainer: https://<IP>:9443"
+    "Portainer: https://<IP>:9443" \
+    "https://<IP>:9443"
 
 register_type "supabase" \
     "Supabase" \
     "Self-hosted Supabase (PostgreSQL + Auth + API)" \
     4 8192 "50G" \
     "supabase-cloud-config.yaml" \
-    "Studio: http://<IP>:3000 | API: http://<IP>:8000"
+    "Studio: http://<IP>:3000 | API: http://<IP>:8000" \
+    "http://<IP>:3000"
 
 register_type "coolify" \
     "Coolify" \
     "Self-hosted PaaS (Heroku/Vercel alternatief)" \
     2 2048 "30G" \
     "coolify-cloud-config.yaml" \
-    "Dashboard: http://<IP>:8000"
+    "Dashboard: http://<IP>:8000" \
+    "http://<IP>:8000"
 
 register_type "minio" \
     "MinIO" \
     "S3-compatible object storage" \
     4 4096 "50G" \
     "minio-cloud-config.yaml" \
-    "Console: http://<IP>:9001 | API: http://<IP>:9000"
+    "Console: http://<IP>:9001 | API: http://<IP>:9000" \
+    "http://<IP>:9001"
 
 register_type "appwrite" \
     "Appwrite" \
     "Multi-project BaaS platform" \
     4 4096 "50G" \
     "appwrite-cloud-config.yaml" \
-    "Console: http://<IP>"
+    "Console: http://<IP>" \
+    "http://<IP>"
 
 # ── Lookup functies ──────────────────────────
 
@@ -119,6 +131,12 @@ apply_defaults_for_type() {
     CORES="${CORES:-${TYPE_CORES[$type]}}"
     MEMORY="${MEMORY:-${TYPE_MEMORY[$type]}}"
     DISK_SIZE="${DISK_SIZE:-${TYPE_DISK[$type]}}"
+}
+
+# Geeft health check URL voor een type
+get_healthcheck() {
+    local type="$1"
+    echo "${TYPE_HEALTHCHECK[$type]}"
 }
 
 # Geeft post-installatie info voor een type

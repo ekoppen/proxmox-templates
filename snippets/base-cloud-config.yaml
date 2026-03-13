@@ -36,6 +36,19 @@ runcmd:
   - systemctl enable ssh
   - systemctl start ssh
 
+  # MOTD met toegangsinformatie
+  - |
+    IP=$(hostname -I | awk '{print $1}')
+    cat > /etc/motd << EOF
+
+    ╔══════════════════════════════════════════╗
+    ║  Base Server                             ║
+    ╠══════════════════════════════════════════╣
+    ║  SSH:  ssh admin@${IP}                   ║
+    ╚══════════════════════════════════════════╝
+
+    EOF
+
 # Automatische security updates
 write_files:
   - path: /etc/apt/apt.conf.d/20auto-upgrades

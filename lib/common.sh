@@ -12,6 +12,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+# shellcheck disable=SC2034  # BOLD is used by sourcing scripts
 BOLD='\033[1m'
 NC='\033[0m'
 
@@ -78,6 +79,60 @@ next_vmid() {
         vmid=$((vmid + 1))
     done
     echo "$vmid"
+}
+
+# ── Validatie ────────────────────────────────
+
+# Controleer disk grootte formaat (bijv. 32G, 100G, 1T)
+validate_disk_size() {
+    local size=$1
+    [[ -z "$size" ]] && return 0  # leeg = niet resizen, OK
+    if ! [[ "$size" =~ ^[0-9]+[GMTK]$ ]]; then
+        log_error "Ongeldige disk grootte: $size (gebruik bijv. 32G, 100G, 1T)"
+    fi
+}
+
+# Controleer beschikbare ruimte op storage
+check_storage_space() {
+    local storage=$1 required=$2
+    [[ -z "$storage" || -z "$required" ]] && return 0
+    local avail
+    avail=$(pvesm status --storage "$storage" 2>/dev/null | tail -1 | awk '{print $5}')
+    if [[ -n "$avail" ]]; then
+        local required_bytes=$((required * 1073741824))
+        if [[ "$avail" -lt "$required_bytes" ]]; then
+            log_warn "Weinig ruimte op $storage: $(( avail / 1073741824 ))GB vrij, ${required}GB nodig"
+        fi
+    fi
+}
+
+# Controleer beschikbaar geheugen op de host
+check_host_memory() {
+    local requested=$1
+    [[ -z "$requested" ]] && return 0
+    local free_mb
+    free_mb=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null)
+    if [[ -n "$free_mb" && "$requested" -gt "$free_mb" ]]; then
+        log_warn "Weinig geheugen: ${free_mb}MB vrij, ${requested}MB gevraagd (overcommit)"
+    fi
+}
+
+# Wacht tot een service bereikbaar is
+wait_for_service() {
+    local url=$1 max_wait=${2:-120}
+    [[ -z "$url" ]] && return 0
+    log_info "Wachten op service ($url)..."
+    local elapsed=0
+    while [[ $elapsed -lt $max_wait ]]; do
+        if curl -skf -o /dev/null --connect-timeout 3 "$url" 2>/dev/null; then
+            log_success "Service bereikbaar"
+            return 0
+        fi
+        sleep 5
+        elapsed=$((elapsed + 5))
+    done
+    log_warn "Service nog niet bereikbaar na ${max_wait}s (kan nog opstarten)"
+    return 1
 }
 
 # ASCII banner
