@@ -147,7 +147,7 @@ show_confirmation() {
     whiptail --backtitle "$BACKTITLE" --title "$MSG_MENU_CONFIRM_TITLE" --yesno \
 "$MSG_MENU_CONFIRM_TEXT
 
-  Naam:       $VM_NAME
+  $MSG_COMMON_NAME_LABEL:       $VM_NAME
   ID:         $VM_ID
   Type:       ${TYPE_LABELS[$SELECTED_TYPE]}
   Cores:      $CORES
@@ -346,9 +346,9 @@ create_haos_flow() {
     whiptail --backtitle "$BACKTITLE" --title "$MSG_MENU_CONFIRM_TITLE" --yesno \
 "$MSG_MENU_HAOS_CONFIRM_TEXT
 
-  Naam:     $VM_NAME
+  $MSG_COMMON_NAME_LABEL:     $VM_NAME
   ID:       $VM_ID
-  Versie:   $version_info
+  $MSG_COMMON_VERSION_LABEL:   $version_info
   VLAN:     $vlan_info
   BIOS:     $MSG_MENU_HAOS_CONFIRM_BIOS
   Machine:  $MSG_MENU_HAOS_CONFIRM_MACHINE

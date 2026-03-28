@@ -65,7 +65,7 @@ fi
 echo ""
 echo -e "${YELLOW}${MSG_DELETE_VM_HEADER}${NC}"
 echo -e "  ID:     $VM_ID"
-echo -e "  Naam:   $NAME"
+echo -e "  $MSG_COMMON_NAME_LABEL:   $NAME"
 echo -e "  Status: $STATUS"
 echo ""
 

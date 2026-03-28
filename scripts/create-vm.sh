@@ -315,7 +315,7 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}  ${MSG_CREATE_VM_SUCCESS_HEADER}${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
-echo -e "  Naam:     ${GREEN}$VM_NAME${NC}"
+echo -e "  $MSG_COMMON_NAME_LABEL:     ${GREEN}$VM_NAME${NC}"
 echo -e "  ID:       $VM_ID"
 echo -e "  Type:     $VM_TYPE"
 [[ -n "$VLAN_TAG" ]] && echo -e "  VLAN:     $VLAN_TAG"

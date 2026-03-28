@@ -72,7 +72,7 @@ do_update() {
     echo ""
 
     read -rp "$MSG_PVE_UPDATE_CONFIRM" CONFIRM
-    if [[ "$CONFIRM" =~ ^[jJyY]$ ]]; then
+    if [[ "$CONFIRM" =~ ^[$MSG_CONFIRM_YES_CHARS]$ ]]; then
         echo ""
         log_info "$MSG_PVE_UPDATE_INSTALLING"
         apt dist-upgrade -y

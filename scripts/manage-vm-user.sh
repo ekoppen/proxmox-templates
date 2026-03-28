@@ -72,19 +72,19 @@ usage() {
     echo "$MSG_USER_DESC"
     echo ""
     echo "$MSG_USER_ACTIONS"
-    echo "  --passwd USER       Wachtwoord (her)instellen voor gebruiker"
-    echo "  --add-user USER     Nieuwe gebruiker aanmaken"
-    echo "  --add-ssh-key USER  SSH key toevoegen aan bestaande gebruiker"
-    echo "  --del-user USER     Gebruiker verwijderen"
-    echo "  --list-users        Gebruikers tonen op de VM"
+    echo "  --passwd USER       $MSG_USER_ACT_PASSWD"
+    echo "  --add-user USER     $MSG_USER_ACT_ADD"
+    echo "  --add-ssh-key USER  $MSG_USER_ACT_ADD_SSH"
+    echo "  --del-user USER     $MSG_USER_ACT_DEL"
+    echo "  --list-users        $MSG_USER_ACT_LIST"
     echo ""
     echo "$MSG_USER_OPTIONS"
-    echo "  --vmid N            VM ID (verplicht)"
-    echo "  --sudo              Geef sudo rechten (bij --add-user)"
-    echo "  --shell SHELL       Login shell (standaard: /bin/bash)"
-    echo "  --ssh-key \"KEY\"     SSH public key toevoegen"
-    echo "  --password PASS     Wachtwoord meegeven (anders interactief)"
-    echo "  --help              Toon deze hulptekst"
+    echo "  --vmid N            $MSG_USER_OPT_VMID"
+    echo "  --sudo              $MSG_USER_OPT_SUDO"
+    echo "  --shell SHELL       $MSG_USER_OPT_SHELL"
+    echo "  --ssh-key \"KEY\"     $MSG_USER_OPT_SSH_KEY"
+    echo "  --password PASS     $MSG_USER_OPT_PASSWORD"
+    echo "  --help              $MSG_USER_OPT_HELP"
     echo ""
     echo "$MSG_USER_EXAMPLES"
     echo "  $0 --vmid 110 --passwd admin"
@@ -382,7 +382,7 @@ case "$ACTION" in
             log_warn "$MSG_USER_NO_PASSWORD_NO_KEY"
             echo -en "${BLUE}[INFO]${NC} $MSG_USER_ADD_SET_PASSWORD_PROMPT"
             read -r answer
-            if [[ "$answer" =~ ^[jJyY]$ ]]; then
+            if [[ "$answer" =~ ^[$MSG_CONFIRM_YES_CHARS]$ ]]; then
                 PASSWORD=$(ask_password)
             fi
         fi
@@ -400,7 +400,7 @@ case "$ACTION" in
         # Bevestiging vragen
         echo -en "${YELLOW}[WARN]${NC} $MSG_USER_DEL_CONFIRM"
         read -r answer
-        if [[ "$answer" =~ ^[jJyY]$ ]]; then
+        if [[ "$answer" =~ ^[$MSG_CONFIRM_YES_CHARS]$ ]]; then
             do_del_user "$VM_ID" "$TARGET_USER"
         else
             log_info "$MSG_USER_DEL_CANCELLED"

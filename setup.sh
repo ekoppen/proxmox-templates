@@ -163,7 +163,7 @@ else
         echo -e "  ${GREEN}[G]${NC} $MSG_SETUP_GENERATE_KEY"
         echo -e "  ${YELLOW}[S]${NC} $MSG_SETUP_SKIP"
         echo ""
-        read -rp "  Keuze [P]: " KEY_CHOICE
+        read -rp "  $MSG_SETUP_CHOICE [P]: " KEY_CHOICE
         KEY_CHOICE=${KEY_CHOICE:-P}
 
         case $KEY_CHOICE in
@@ -257,7 +257,7 @@ if command -v qm &>/dev/null; then
         echo -e "  ${GREEN}[A]${NC} $MSG_SETUP_TEMPLATE_AUTO"
         echo -e "  ${YELLOW}[D]${NC} $MSG_SETUP_TEMPLATE_CONTINUE"
         echo ""
-        read -rp "  Keuze [A]: " TPL_CHOICE
+        read -rp "  $MSG_SETUP_CHOICE [A]: " TPL_CHOICE
         TPL_CHOICE=${TPL_CHOICE:-A}
 
         case $TPL_CHOICE in
