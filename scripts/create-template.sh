@@ -59,27 +59,35 @@ if [[ "$USE_LIB" != true ]]; then
     log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
     log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
     log_error()   { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
+    # Load lang file in fallback path
+    for _lp in "$SCRIPT_DIR/../lib" "/root/lib"; do
+        if [[ -f "$_lp/config.sh" ]]; then source "$_lp/config.sh" 2>/dev/null || true; fi
+        LANG_CHOICE="${LANG_CHOICE:-en}"
+        if [[ -f "$_lp/lang/${LANG_CHOICE}.sh" ]]; then
+            source "$_lp/lang/${LANG_CHOICE}.sh"
+            break
+        fi
+    done
 fi
 
 # ── Functies ──────────────────────────────────
 usage() {
-    echo -e "${BLUE}Proxmox Template Creator${NC}"
+    echo -e "${BLUE}${MSG_CREATE_TPL_TITLE}${NC}"
     echo ""
-    echo "Gebruik: $0 [opties]"
+    echo "$MSG_CREATE_TPL_USAGE"
     echo ""
-    echo "Download het officiële Debian 12 cloud image en maakt"
-    echo "er een Proxmox VM template van met cloud-init support."
+    echo "$MSG_CREATE_TPL_DESC"
     echo ""
-    echo "Opties:"
-    echo "  --id ID          Template VM ID (standaard: $TEMPLATE_ID)"
-    echo "  --storage NAAM   Storage backend (standaard: $STORAGE)"
-    echo "  --bridge NAAM    Netwerk bridge (standaard: $BRIDGE)"
-    echo "  --vlan N         VLAN tag (standaard: geen)"
-    echo "  --name NAAM      Template naam (standaard: $TEMPLATE_NAME)"
-    echo "  --auto           Non-interactief (geen prompts)"
-    echo "  --help           Toon deze hulptekst"
+    echo "$MSG_CREATE_TPL_OPTIONS"
+    echo "$MSG_CREATE_TPL_OPT_ID"
+    echo "$MSG_CREATE_TPL_OPT_STORAGE"
+    echo "$MSG_CREATE_TPL_OPT_BRIDGE"
+    echo "$MSG_CREATE_TPL_OPT_VLAN"
+    echo "$MSG_CREATE_TPL_OPT_NAME"
+    echo "$MSG_CREATE_TPL_OPT_AUTO"
+    echo "$MSG_CREATE_TPL_OPT_HELP"
     echo ""
-    echo "Voorbeelden:"
+    echo "$MSG_CREATE_TPL_EXAMPLES"
     echo "  $0"
     echo "  $0 --id 9001 --storage local-lvm"
     echo "  $0 --id 9000 --bridge vmbr1 --name debian-12-test"
@@ -99,14 +107,14 @@ while [[ $# -gt 0 ]]; do
         --name)    TEMPLATE_NAME=$2; shift 2 ;;
         --auto)    AUTO_MODE=true;  shift ;;
         --help)    usage ;;
-        *)         log_error "Onbekende optie: $1 (gebruik --help voor opties)" ;;
+        *)         log_error "$MSG_CREATE_TPL_UNKNOWN_OPTION" ;;
     esac
 done
 
 # ── Header ────────────────────────────────────
 echo ""
 echo -e "${BLUE}════════════════════════════════════════${NC}"
-echo -e "${BLUE}  Debian Cloud Template Aanmaken${NC}"
+echo -e "${BLUE}  ${MSG_CREATE_TPL_HEADER}${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo ""
 log_info "Template ID:  $TEMPLATE_ID"
@@ -117,60 +125,60 @@ log_info "Naam:         $TEMPLATE_NAME"
 echo ""
 
 # ── Stap 1: Vereisten check ──────────────────
-log_info "[1/9] Vereisten controleren..."
+log_info "$MSG_CREATE_TPL_STEP1"
 
-command -v qm &>/dev/null || log_error "qm niet gevonden - dit script moet op een Proxmox host draaien"
-command -v wget &>/dev/null || log_error "wget niet gevonden - installeer met: apt-get install -y wget"
+command -v qm &>/dev/null || log_error "$MSG_CREATE_TPL_QM_NOT_FOUND"
+command -v wget &>/dev/null || log_error "$MSG_CREATE_TPL_WGET_NOT_FOUND"
 
-log_success "Alle vereisten aanwezig"
+log_success "$MSG_CREATE_TPL_ALL_REQUIREMENTS"
 
 # ── Stap 2: Template check ───────────────────
-log_info "[2/9] Bestaande template controleren..."
+log_info "$MSG_CREATE_TPL_STEP2"
 
 if qm status "$TEMPLATE_ID" &>/dev/null 2>&1; then
     if [[ "$AUTO_MODE" == true ]]; then
-        log_info "Template $TEMPLATE_ID bestaat al - overgeslagen"
+        log_info "$MSG_CREATE_TPL_EXISTS_AUTO"
         exit 0
     fi
-    log_warn "VM/template $TEMPLATE_ID bestaat al"
+    log_warn "$MSG_CREATE_TPL_EXISTS_WARN"
     echo ""
-    echo -e "  ${YELLOW}[O]${NC} Overschrijven (verwijder bestaande VM eerst)"
-    echo -e "  ${YELLOW}[A]${NC} Afbreken"
+    echo -e "  ${YELLOW}[O]${NC} $MSG_CREATE_TPL_OVERWRITE"
+    echo -e "  ${YELLOW}[A]${NC} $MSG_CREATE_TPL_ABORT"
     echo ""
-    read -rp "  Keuze [A]: " OVERWRITE_CHOICE
+    read -rp "  $MSG_CREATE_TPL_CHOICE_PROMPT [A]: " OVERWRITE_CHOICE
     OVERWRITE_CHOICE=${OVERWRITE_CHOICE:-A}
 
     case $OVERWRITE_CHOICE in
         [Oo])
-            log_info "Bestaande VM $TEMPLATE_ID verwijderen..."
+            log_info "$MSG_CREATE_TPL_REMOVING"
             qm stop "$TEMPLATE_ID" 2>/dev/null || true
             qm destroy "$TEMPLATE_ID" --purge 2>/dev/null || true
-            log_success "Bestaande VM verwijderd"
+            log_success "$MSG_CREATE_TPL_REMOVED"
             ;;
         *)
-            log_info "Afgebroken door gebruiker"
+            log_info "$MSG_CREATE_TPL_ABORTED"
             exit 0
             ;;
     esac
 else
-    log_success "Template ID $TEMPLATE_ID is beschikbaar"
+    log_success "$MSG_CREATE_TPL_AVAILABLE"
 fi
 
 # ── Stap 3: Image check ──────────────────────
-log_info "[3/9] Cloud image controleren..."
+log_info "$MSG_CREATE_TPL_STEP3"
 
 DOWNLOAD_IMAGE=true
 if [[ -f "$IMAGE_FILE" ]]; then
     if [[ "$AUTO_MODE" == true ]]; then
         DOWNLOAD_IMAGE=false
-        log_success "Bestaand image hergebruikt"
+        log_success "$MSG_CREATE_TPL_IMAGE_REUSED"
     else
-        log_warn "Image bestaat al: $IMAGE_FILE"
+        log_warn "$MSG_CREATE_TPL_IMAGE_EXISTS"
         echo ""
-        echo -e "  ${YELLOW}[H]${NC} Hergebruiken (sla download over)"
-        echo -e "  ${YELLOW}[O]${NC} Opnieuw downloaden"
+        echo -e "  ${YELLOW}[H]${NC} $MSG_CREATE_TPL_IMAGE_REUSE"
+        echo -e "  ${YELLOW}[O]${NC} $MSG_CREATE_TPL_IMAGE_REDOWNLOAD"
         echo ""
-        read -rp "  Keuze [H]: " IMAGE_CHOICE
+        read -rp "  $MSG_CREATE_TPL_CHOICE_PROMPT [H]: " IMAGE_CHOICE
         IMAGE_CHOICE=${IMAGE_CHOICE:-H}
 
         case $IMAGE_CHOICE in
@@ -179,7 +187,7 @@ if [[ -f "$IMAGE_FILE" ]]; then
                 ;;
             *)
                 DOWNLOAD_IMAGE=false
-                log_success "Bestaand image hergebruikt"
+                log_success "$MSG_CREATE_TPL_IMAGE_REUSED"
                 ;;
         esac
     fi
@@ -187,16 +195,16 @@ fi
 
 # ── Stap 4: Download ─────────────────────────
 if [[ "$DOWNLOAD_IMAGE" == true ]]; then
-    log_info "[4/9] Debian 12 cloud image downloaden..."
+    log_info "$MSG_CREATE_TPL_STEP4_DOWNLOAD"
     log_info "URL: $IMAGE_URL"
     wget -q --show-progress -O "$IMAGE_FILE" "$IMAGE_URL"
-    log_success "Image gedownload naar $IMAGE_FILE"
+    log_success "$MSG_CREATE_TPL_IMAGE_DOWNLOADED"
 else
-    log_info "[4/9] Download overgeslagen (hergebruik)"
+    log_info "$MSG_CREATE_TPL_STEP4_SKIP"
 fi
 
 # ── Stap 5: Checksum ─────────────────────────
-log_info "[5/9] SHA512 checksum verifiëren..."
+log_info "$MSG_CREATE_TPL_STEP5"
 
 CHECKSUM_FILE="/tmp/debian-cloud-SHA512SUMS"
 wget -q -O "$CHECKSUM_FILE" "$CHECKSUM_URL"
@@ -205,20 +213,20 @@ IMAGE_BASENAME=$(basename "$IMAGE_FILE")
 EXPECTED_SUM=$(grep "$IMAGE_BASENAME" "$CHECKSUM_FILE" | awk '{print $1}')
 
 if [[ -z "$EXPECTED_SUM" ]]; then
-    log_warn "Checksum niet gevonden voor $IMAGE_BASENAME - verificatie overgeslagen"
+    log_warn "$MSG_CREATE_TPL_CHECKSUM_NOT_FOUND"
 else
     ACTUAL_SUM=$(sha512sum "$IMAGE_FILE" | awk '{print $1}')
     if [[ "$EXPECTED_SUM" == "$ACTUAL_SUM" ]]; then
-        log_success "Checksum OK"
+        log_success "$MSG_CREATE_TPL_CHECKSUM_OK"
     else
-        log_error "Checksum komt niet overeen! Image is mogelijk corrupt. Verwijder $IMAGE_FILE en probeer opnieuw."
+        log_error "$MSG_CREATE_TPL_CHECKSUM_MISMATCH"
     fi
 fi
 
 rm -f "$CHECKSUM_FILE"
 
 # ── Stap 6: VM aanmaken ──────────────────────
-log_info "[6/9] VM aanmaken (ID: $TEMPLATE_ID)..."
+log_info "$MSG_CREATE_TPL_STEP6"
 
 NET0="virtio,bridge=${BRIDGE}"
 [[ -n "$VLAN_TAG" ]] && NET0="${NET0},tag=${VLAN_TAG}"
@@ -229,10 +237,10 @@ qm create "$TEMPLATE_ID" \
     --cores 2 \
     --net0 "$NET0"
 
-log_success "VM $TEMPLATE_ID aangemaakt"
+log_success "$MSG_CREATE_TPL_VM_CREATED"
 
 # ── Stap 7: Disk importeren ──────────────────
-log_info "[7/9] Cloud image importeren naar $STORAGE..."
+log_info "$MSG_CREATE_TPL_STEP7"
 
 qm importdisk "$TEMPLATE_ID" "$IMAGE_FILE" "$STORAGE" 2>&1 | tail -1
 
@@ -240,48 +248,48 @@ qm importdisk "$TEMPLATE_ID" "$IMAGE_FILE" "$STORAGE" 2>&1 | tail -1
 UNUSED_DISK=$(qm config "$TEMPLATE_ID" | grep "^unused0:" | cut -d' ' -f2)
 
 if [[ -z "$UNUSED_DISK" ]]; then
-    log_error "Geïmporteerde disk niet gevonden als unused0. Controleer storage configuratie."
+    log_error "$MSG_CREATE_TPL_DISK_NOT_FOUND"
 fi
 
-log_success "Disk geïmporteerd: $UNUSED_DISK"
+log_success "$MSG_CREATE_TPL_DISK_IMPORTED"
 
 # ── Stap 8: VM configureren ──────────────────
-log_info "[8/9] Template configureren..."
+log_info "$MSG_CREATE_TPL_STEP8"
 
 # Disk koppelen als virtio0
 qm set "$TEMPLATE_ID" --virtio0 "$UNUSED_DISK"
-log_success "Virtio disk gekoppeld"
+log_success "$MSG_CREATE_TPL_VIRTIO_LINKED"
 
 # Cloud-init drive toevoegen
 qm set "$TEMPLATE_ID" --ide2 "${STORAGE}:cloudinit"
-log_success "Cloud-init drive toegevoegd"
+log_success "$MSG_CREATE_TPL_CLOUDINIT_ADDED"
 
 # Boot order instellen
 qm set "$TEMPLATE_ID" --boot "order=virtio0"
-log_success "Boot order ingesteld"
+log_success "$MSG_CREATE_TPL_BOOT_ORDER"
 
 # Serial console voor cloud-init output
 qm set "$TEMPLATE_ID" --serial0 socket --vga serial0
-log_success "Serial console geconfigureerd"
+log_success "$MSG_CREATE_TPL_SERIAL_CONFIGURED"
 
 # QEMU Guest Agent inschakelen
 qm set "$TEMPLATE_ID" --agent enabled=1
-log_success "QEMU Guest Agent ingeschakeld"
+log_success "$MSG_CREATE_TPL_AGENT_ENABLED"
 
 # ── Stap 9: Template converteren ─────────────
-log_info "[9/9] VM converteren naar template..."
+log_info "$MSG_CREATE_TPL_STEP9"
 
 qm template "$TEMPLATE_ID"
-log_success "VM geconverteerd naar template"
+log_success "$MSG_CREATE_TPL_CONVERTED"
 
 # Opruimen
 rm -f "$IMAGE_FILE"
-log_success "Tijdelijk image opgeruimd"
+log_success "$MSG_CREATE_TPL_CLEANED"
 
 # ── Samenvatting ──────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
-echo -e "${GREEN}  Template succesvol aangemaakt!${NC}"
+echo -e "${GREEN}  ${MSG_CREATE_TPL_SUCCESS_HEADER}${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ID:       ${GREEN}$TEMPLATE_ID${NC}"
@@ -290,7 +298,7 @@ echo -e "  Storage:  $STORAGE"
 echo -e "  Bridge:   $BRIDGE"
 [[ -n "$VLAN_TAG" ]] && echo -e "  VLAN:     $VLAN_TAG"
 echo ""
-echo "  Je kunt nu VMs aanmaken met:"
+echo "  $MSG_CREATE_TPL_NEXT_STEPS"
 echo ""
 echo -e "  ${YELLOW}create-vm.sh mijn-vm 110 docker --start${NC}"
 echo -e "  ${YELLOW}pve-menu${NC}"

@@ -19,6 +19,17 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# ── Language / Taal ───────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+for _lp in "$SCRIPT_DIR/../lib" "/root/lib"; do
+    if [[ -f "$_lp/config.sh" ]]; then source "$_lp/config.sh" 2>/dev/null || true; fi
+    LANG_CHOICE="${LANG_CHOICE:-en}"
+    if [[ -f "$_lp/lang/${LANG_CHOICE}.sh" ]]; then
+        source "$_lp/lang/${LANG_CHOICE}.sh"
+        break
+    fi
+done
+
 # ── Functies ──────────────────────────────────
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
@@ -27,54 +38,54 @@ log_error()   { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
 
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_error "Dit script moet als root worden uitgevoerd."
+        log_error "$MSG_PVE_MUST_ROOT"
     fi
 }
 
 pause_menu() {
     echo ""
-    read -rp "Druk op Enter om terug te gaan..." _
+    read -rp "$MSG_PVE_PAUSE" _
 }
 
 # ── 1) Systeemupdates ────────────────────────
 do_update() {
-    echo -e "\n${BLUE}══ Systeemupdates ══${NC}\n"
+    echo -e "\n${BLUE}══ ${MSG_PVE_UPDATE_TITLE} ══${NC}\n"
 
-    log_info "Pakketlijsten ophalen..."
+    log_info "$MSG_PVE_UPDATE_FETCHING"
     apt update -qq
 
     UPGRADABLE=$(apt list --upgradable 2>/dev/null | grep -v "^Listing")
 
     if [[ -z "$UPGRADABLE" ]]; then
-        log_success "Systeem is up-to-date. Geen updates beschikbaar."
+        log_success "$MSG_PVE_UPDATE_UP_TO_DATE"
         pause_menu
         return
     fi
 
     echo ""
-    echo -e "${YELLOW}Beschikbare updates:${NC}"
+    echo -e "${YELLOW}${MSG_PVE_UPDATE_AVAILABLE}${NC}"
     echo "$UPGRADABLE"
     echo ""
 
     UPGRADE_COUNT=$(echo "$UPGRADABLE" | wc -l | tr -d ' ')
-    echo -e "${BLUE}${UPGRADE_COUNT} pakket(ten) kunnen worden bijgewerkt.${NC}"
+    echo -e "${BLUE}${MSG_PVE_UPDATE_COUNT}${NC}"
     echo ""
 
-    read -rp "Wil je deze updates installeren? [j/N]: " CONFIRM
+    read -rp "$MSG_PVE_UPDATE_CONFIRM" CONFIRM
     if [[ "$CONFIRM" =~ ^[jJyY]$ ]]; then
         echo ""
-        log_info "Updates worden geïnstalleerd..."
+        log_info "$MSG_PVE_UPDATE_INSTALLING"
         apt dist-upgrade -y
         echo ""
-        log_success "Updates succesvol geïnstalleerd."
+        log_success "$MSG_PVE_UPDATE_INSTALLED"
 
         if [[ -f /var/run/reboot-required ]]; then
             echo ""
-            log_warn "Een herstart is vereist om alle updates te activeren."
-            log_warn "Gebruik: reboot"
+            log_warn "$MSG_PVE_UPDATE_REBOOT"
+            log_warn "$MSG_PVE_UPDATE_REBOOT_CMD"
         fi
     else
-        log_info "Updates overgeslagen."
+        log_info "$MSG_PVE_UPDATE_SKIPPED"
     fi
 
     pause_menu
@@ -82,15 +93,15 @@ do_update() {
 
 # ── 2) Opslag-overzicht ──────────────────────
 do_storage() {
-    echo -e "\n${BLUE}══ Opslag-overzicht ══${NC}\n"
+    echo -e "\n${BLUE}══ ${MSG_PVE_STORAGE_TITLE} ══${NC}\n"
 
     if ! command -v pvesm &>/dev/null; then
-        log_error "pvesm niet gevonden. Is dit een Proxmox VE server?"
+        log_error "$MSG_PVE_STORAGE_PVESM_NOT_FOUND"
     fi
 
     # Header
     printf "%-15s %-10s %10s %10s %10s %8s\n" \
-        "NAAM" "TYPE" "TOTAAL" "GEBRUIKT" "VRIJ" "GEBRUIK"
+        "$MSG_PVE_STORAGE_NAME" "$MSG_PVE_STORAGE_TYPE" "$MSG_PVE_STORAGE_TOTAL" "$MSG_PVE_STORAGE_USED" "$MSG_PVE_STORAGE_FREE" "$MSG_PVE_STORAGE_USAGE"
     printf "%-15s %-10s %10s %10s %10s %8s\n" \
         "───────────────" "──────────" "──────────" "──────────" "──────────" "────────"
 
@@ -133,15 +144,15 @@ do_storage() {
 show_menu() {
     clear
     echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║       PVE Server Beheer              ║${NC}"
+    echo -e "${BLUE}║       ${MSG_PVE_MENU_TITLE}              ║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════╝${NC}"
     echo ""
-    echo "  1) Systeemupdates"
-    echo "  2) Opslag-overzicht"
+    echo "  1) $MSG_PVE_MENU_1"
+    echo "  2) $MSG_PVE_MENU_2"
     echo ""
-    echo "  0) Afsluiten"
+    echo "  0) $MSG_PVE_MENU_0"
     echo ""
-    read -rp "Keuze [0-2]: " CHOICE
+    read -rp "$MSG_PVE_MENU_PROMPT" CHOICE
 }
 
 main_menu() {
@@ -150,8 +161,8 @@ main_menu() {
         case $CHOICE in
             1) do_update ;;
             2) do_storage ;;
-            0) echo -e "\n${GREEN}Tot ziens!${NC}"; exit 0 ;;
-            *) log_warn "Ongeldige keuze: $CHOICE" ; sleep 1 ;;
+            0) echo -e "\n${GREEN}${MSG_PVE_MENU_GOODBYE}${NC}"; exit 0 ;;
+            *) log_warn "$MSG_PVE_MENU_INVALID" ; sleep 1 ;;
         esac
     done
 }
@@ -164,15 +175,15 @@ case "${1:-}" in
     storage) do_storage ; exit 0 ;;
     "")      main_menu ;;
     *)
-        echo -e "${BLUE}PVE Server Beheer${NC}"
+        echo -e "${BLUE}${MSG_PVE_TITLE}${NC}"
         echo ""
-        echo "Gebruik: $0 [commando]"
+        echo "$MSG_PVE_USAGE"
         echo ""
-        echo "Commando's:"
-        echo "  update     Systeemupdates controleren en installeren"
-        echo "  storage    Opslag-overzicht tonen"
+        echo "$MSG_PVE_COMMANDS"
+        echo "  update     $MSG_PVE_CMD_UPDATE"
+        echo "  storage    $MSG_PVE_CMD_STORAGE"
         echo ""
-        echo "Zonder commando wordt het interactieve menu gestart."
+        echo "$MSG_PVE_NO_CMD"
         exit 1
         ;;
 esac

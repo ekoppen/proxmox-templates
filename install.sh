@@ -20,39 +20,45 @@ INSTALL_DIR="/root/scripts"
 LIB_DIR="/root/lib"
 SNIPPET_DIR="/var/lib/vz/snippets"
 
-echo -e "${BLUE}Proxmox VM Templates - Installatie${NC}"
+# Load language
+source "$SCRIPT_DIR/lib/config.sh" 2>/dev/null || LANG_CHOICE="en"
+source "$SCRIPT_DIR/lib/lang/${LANG_CHOICE}.sh" 2>/dev/null || true
+
+echo -e "${BLUE}${MSG_INSTALL_TITLE}${NC}"
 echo ""
 
 # 1. Snippets content-type inschakelen op local storage
-echo -e "${BLUE}[1/7]${NC} Snippets inschakelen op local storage..."
+echo -e "${BLUE}${MSG_INSTALL_STEP1}${NC}"
 CURRENT_CONTENT=$(pvesm status --storage local 2>/dev/null | tail -1 | awk '{print $5}')
 if ! echo "$CURRENT_CONTENT" | grep -q "snippets"; then
     # Voeg snippets toe aan bestaande content types
     pvesm set local --content iso,vztmpl,backup,snippets
-    echo -e "${GREEN}  ✓ Snippets ingeschakeld${NC}"
+    echo -e "${GREEN}  ✓ ${MSG_INSTALL_SNIPPETS_ENABLED}${NC}"
 else
-    echo -e "${GREEN}  ✓ Snippets was al ingeschakeld${NC}"
+    echo -e "${GREEN}  ✓ ${MSG_INSTALL_SNIPPETS_ALREADY}${NC}"
 fi
 
 # 2. Snippets directory aanmaken
-echo -e "${BLUE}[2/7]${NC} Snippets directory controleren..."
+echo -e "${BLUE}${MSG_INSTALL_STEP2}${NC}"
 mkdir -p "$SNIPPET_DIR"
-echo -e "${GREEN}  ✓ $SNIPPET_DIR bestaat${NC}"
+echo -e "${GREEN}  ✓ ${MSG_INSTALL_DIR_EXISTS}${NC}"
 
 # 3. Cloud-init YAMLs kopiëren
-echo -e "${BLUE}[3/7]${NC} Cloud-init configuraties installeren..."
+echo -e "${BLUE}${MSG_INSTALL_STEP3}${NC}"
 cp "$SCRIPT_DIR/snippets/"*.yaml "$SNIPPET_DIR/"
-echo -e "${GREEN}  ✓ Snippets gekopieerd naar $SNIPPET_DIR${NC}"
+echo -e "${GREEN}  ✓ ${MSG_INSTALL_SNIPPETS_COPIED}${NC}"
 
 # 4. Libraries installeren
-echo -e "${BLUE}[4/7]${NC} Libraries installeren..."
+echo -e "${BLUE}${MSG_INSTALL_STEP4}${NC}"
 mkdir -p "$LIB_DIR"
 cp "$SCRIPT_DIR/lib/"*.sh "$LIB_DIR/"
+cp -r "$SCRIPT_DIR/lib/lang" "$LIB_DIR/lang"
+[[ -f "$SCRIPT_DIR/lib/config.sh" ]] && cp "$SCRIPT_DIR/lib/config.sh" "$LIB_DIR/config.sh"
 chmod +x "$LIB_DIR/"*.sh
-echo -e "${GREEN}  ✓ Libraries geïnstalleerd in $LIB_DIR${NC}"
+echo -e "${GREEN}  ✓ ${MSG_INSTALL_LIBS_INSTALLED}${NC}"
 
 # 5. Scripts installeren
-echo -e "${BLUE}[5/7]${NC} Scripts installeren..."
+echo -e "${BLUE}${MSG_INSTALL_STEP5}${NC}"
 mkdir -p "$INSTALL_DIR"
 cp "$SCRIPT_DIR/scripts/"*.sh "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR/"*.sh
@@ -66,38 +72,38 @@ ln -sf "$INSTALL_DIR/quick-create.sh" "$INSTALL_DIR/quick-coolify.sh"
 ln -sf "$INSTALL_DIR/quick-create.sh" "$INSTALL_DIR/quick-minio.sh"
 ln -sf "$INSTALL_DIR/quick-create.sh" "$INSTALL_DIR/quick-appwrite.sh"
 ln -sf "$INSTALL_DIR/create-haos-vm.sh" "$INSTALL_DIR/quick-haos.sh"
-echo -e "${GREEN}  ✓ Scripts geïnstalleerd in $INSTALL_DIR${NC}"
+echo -e "${GREEN}  ✓ ${MSG_INSTALL_SCRIPTS_INSTALLED}${NC}"
 
 # 6. Menu shortcut aanmaken
-echo -e "${BLUE}[6/7]${NC} Menu shortcut installeren..."
+echo -e "${BLUE}${MSG_INSTALL_STEP6}${NC}"
 ln -sf "$INSTALL_DIR/menu.sh" /usr/local/bin/pve-menu
-echo -e "${GREEN}  ✓ pve-menu commando beschikbaar${NC}"
+echo -e "${GREEN}  ✓ ${MSG_INSTALL_MENU_AVAILABLE}${NC}"
 
 # 7. PATH toevoegen als dat nog niet is gedaan
-echo -e "${BLUE}[7/7]${NC} PATH configureren..."
+echo -e "${BLUE}${MSG_INSTALL_STEP7}${NC}"
 if ! grep -q "$INSTALL_DIR" /root/.bashrc 2>/dev/null; then
     {
         echo ""
         echo "# Proxmox VM scripts"
         echo "export PATH=\"\$PATH:$INSTALL_DIR\""
     } >> /root/.bashrc
-    echo -e "${GREEN}  ✓ $INSTALL_DIR toegevoegd aan PATH${NC}"
+    echo -e "${GREEN}  ✓ ${MSG_INSTALL_PATH_ADDED}${NC}"
 else
-    echo -e "${GREEN}  ✓ PATH was al geconfigureerd${NC}"
+    echo -e "${GREEN}  ✓ ${MSG_INSTALL_PATH_ALREADY}${NC}"
 fi
 
 echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
-echo -e "${GREEN}  Installatie voltooid!${NC}"
+echo -e "${GREEN}  ${MSG_INSTALL_COMPLETE}${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
-echo "Geïnstalleerde snippets:"
+echo "$MSG_INSTALL_INSTALLED_SNIPPETS"
 for f in "$SNIPPET_DIR/"*.yaml; do [[ -f "$f" ]] && echo "  $(basename "$f")"; done
 echo ""
-echo "Geïnstalleerde scripts:"
+echo "$MSG_INSTALL_INSTALLED_SCRIPTS"
 for f in "$INSTALL_DIR/"*.sh; do [[ -f "$f" ]] && echo "  $(basename "$f")"; done
 echo ""
-echo "Gebruik (na 'source ~/.bashrc' of opnieuw inloggen):"
+echo "$MSG_INSTALL_USAGE"
 echo ""
 echo "  create-template.sh                          # Template aanmaken"
 echo "  create-template.sh --id 9001 --storage lvm  # Template met opties"
@@ -114,6 +120,6 @@ echo "  quick-haos.sh haos-01 300 --start          # Home Assistant OS"
 echo "  list-vms.sh                                 # VM overzicht"
 echo "  delete-vm.sh 130                            # VM verwijderen"
 echo ""
-echo -e "${BLUE}Let op:${NC} als je nog geen Debian cloud-init template hebt,"
-echo "voer dan eerst create-template.sh uit om er een aan te maken."
+echo -e "${BLUE}${MSG_INSTALL_NOTE}${NC}"
+echo "$MSG_INSTALL_NOTE2"
 echo ""

@@ -42,22 +42,31 @@ if [[ "$USE_LIB" != true ]]; then
     log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
     log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
     log_error()   { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
+    # Load lang file in fallback path
+    for _lp in "$SCRIPT_DIR/../lib" "/root/lib"; do
+        if [[ -f "$_lp/config.sh" ]]; then source "$_lp/config.sh" 2>/dev/null || true; fi
+        LANG_CHOICE="${LANG_CHOICE:-en}"
+        if [[ -f "$_lp/lang/${LANG_CHOICE}.sh" ]]; then
+            source "$_lp/lang/${LANG_CHOICE}.sh"
+            break
+        fi
+    done
 fi
 
 # ── Functies ──────────────────────────────────
 usage() {
-    echo -e "${BLUE}Proxmox VM Backup${NC}"
+    echo -e "${BLUE}${MSG_BACKUP_TITLE}${NC}"
     echo ""
-    echo "Gebruik: $0 [opties]"
+    echo "$MSG_BACKUP_USAGE"
     echo ""
-    echo "Opties:"
+    echo "$MSG_BACKUP_OPTIONS"
     echo "  --vmid N       Backup specifieke VM"
     echo "  --all          Backup alle VMs"
     echo "  --storage NAAM Backup storage (standaard: auto-detect)"
     echo "  --mode MODE    snapshot|suspend|stop (standaard: snapshot)"
     echo "  --help         Toon deze hulptekst"
     echo ""
-    echo "Voorbeelden:"
+    echo "$MSG_CREATE_VM_EXAMPLES"
     echo "  $0 --vmid 110"
     echo "  $0 --all --mode snapshot"
     echo "  $0 --vmid 110 --storage pbs-store"
@@ -82,12 +91,12 @@ backup_vm() {
     local name
     name=$(qm config "$vmid" 2>/dev/null | grep "^name:" | awk '{print $2}')
 
-    log_info "[$vmid] $name - backup starten (modus: $mode)..."
+    log_info "$MSG_BACKUP_STARTING"
     if vzdump "$vmid" --storage "$storage" --mode "$mode" --compress zstd --notes-template "{{guestname}}" 2>&1; then
-        log_success "[$vmid] $name - backup voltooid"
+        log_success "$MSG_BACKUP_COMPLETED"
         return 0
     else
-        log_warn "[$vmid] $name - backup mislukt"
+        log_warn "$MSG_BACKUP_FAILED"
         return 1
     fi
 }
@@ -118,32 +127,32 @@ while [[ $# -gt 0 ]]; do
         --storage) BACKUP_STORAGE=$2; shift 2 ;;
         --mode)    BACKUP_MODE=$2;    shift 2 ;;
         --help)    usage ;;
-        *)         log_error "Onbekende optie: $1 (gebruik --help)" ;;
+        *)         log_error "$MSG_BACKUP_UNKNOWN_OPTION" ;;
     esac
 done
 
 # Validatie
 if [[ "$ALL_VMS" != true && -z "$VM_ID" ]]; then
-    log_error "Geef --vmid N of --all op"
+    log_error "$MSG_BACKUP_NEED_VMID_OR_ALL"
 fi
 
 if [[ -n "$BACKUP_MODE" && ! "$BACKUP_MODE" =~ ^(snapshot|suspend|stop)$ ]]; then
-    log_error "Ongeldige modus: $BACKUP_MODE (kies snapshot, suspend of stop)"
+    log_error "$MSG_BACKUP_INVALID_MODE"
 fi
 
 # Storage detectie
 if [[ -z "$BACKUP_STORAGE" ]]; then
     BACKUP_STORAGE=$(detect_backup_storage)
     if [[ -z "$BACKUP_STORAGE" ]]; then
-        log_error "Geen backup storage gevonden. Geef storage op met --storage"
+        log_error "$MSG_BACKUP_NO_STORAGE"
     fi
-    log_info "Auto-detected backup storage: $BACKUP_STORAGE"
+    log_info "$MSG_BACKUP_AUTO_DETECTED"
 fi
 
 # ── Backup uitvoeren ────────────────────────
 echo ""
 echo -e "${BLUE}════════════════════════════════════════${NC}"
-echo -e "${BLUE}  VM Backup${NC}"
+echo -e "${BLUE}  ${MSG_BACKUP_HEADER}${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo ""
 log_info "Storage:  $BACKUP_STORAGE"
@@ -167,7 +176,7 @@ if [[ "$ALL_VMS" == true ]]; then
     done < <(get_all_vms)
 else
     # Check of VM bestaat
-    qm status "$VM_ID" &>/dev/null 2>&1 || log_error "VM $VM_ID niet gevonden"
+    qm status "$VM_ID" &>/dev/null 2>&1 || log_error "$MSG_BACKUP_VM_NOT_FOUND"
     TOTAL=1
     if backup_vm "$VM_ID" "$BACKUP_STORAGE" "$BACKUP_MODE"; then
         SUCCESS=1
@@ -179,10 +188,10 @@ fi
 # ── Samenvatting ──────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
-echo -e "${GREEN}  Backup voltooid${NC}"
+echo -e "${GREEN}  ${MSG_BACKUP_SUMMARY_HEADER}${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
-echo -e "  Totaal:    $TOTAL"
-echo -e "  Gelukt:    ${GREEN}$SUCCESS${NC}"
-[[ $FAILED -gt 0 ]] && echo -e "  Mislukt:   ${RED}$FAILED${NC}"
+echo -e "  ${MSG_BACKUP_TOTAL}    $TOTAL"
+echo -e "  ${MSG_BACKUP_SUCCESS}    ${GREEN}$SUCCESS${NC}"
+[[ $FAILED -gt 0 ]] && echo -e "  ${MSG_BACKUP_FAILED_COUNT}   ${RED}$FAILED${NC}"
 echo ""

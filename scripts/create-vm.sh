@@ -61,15 +61,24 @@ if [[ "$USE_REGISTRY" != true ]]; then
     log_success() { echo -e "${GREEN}[OK]${NC}   $1"; }
     log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
     log_error()   { echo -e "${RED}[FOUT]${NC} $1"; exit 1; }
+    # Load lang file in fallback path
+    for _lp in "$SCRIPT_DIR/../lib" "/root/lib"; do
+        if [[ -f "$_lp/config.sh" ]]; then source "$_lp/config.sh" 2>/dev/null || true; fi
+        LANG_CHOICE="${LANG_CHOICE:-en}"
+        if [[ -f "$_lp/lang/${LANG_CHOICE}.sh" ]]; then
+            source "$_lp/lang/${LANG_CHOICE}.sh"
+            break
+        fi
+    done
 fi
 
 # ── Functies ──────────────────────────────────
 usage() {
-    echo -e "${BLUE}Proxmox VM Creator${NC}"
+    echo -e "${BLUE}${MSG_CREATE_VM_TITLE}${NC}"
     echo ""
-    echo "Gebruik: $0 <naam> <vmid> <type> [opties]"
+    echo "$MSG_CREATE_VM_USAGE"
     echo ""
-    echo "Types:"
+    echo "$MSG_CREATE_VM_TYPES"
     if [[ "$USE_REGISTRY" == true ]]; then
         for key in "${TYPE_ORDER[@]}"; do
             printf "  %-12s %s\n" "$key" "${TYPE_DESCRIPTIONS[$key]}"
@@ -83,16 +92,16 @@ usage() {
         echo "  appwrite   Multi-project BaaS platform (Appwrite)"
     fi
     echo ""
-    echo "Opties:"
-    echo "  --cores N      Aantal CPU cores (standaard: $DEFAULT_CORES)"
-    echo "  --memory N     RAM in MB (standaard: $DEFAULT_MEMORY)"
-    echo "  --disk SIZE    Disk resizen, bijv. 32G (standaard: niet resizen)"
-    echo "  --vlan N       VLAN tag (standaard: geen)"
-    echo "  --full         Full clone i.p.v. linked clone"
-    echo "  --onboot       VM automatisch starten bij host reboot"
-    echo "  --start        VM direct starten na aanmaken (impliceert --onboot)"
+    echo "$MSG_CREATE_VM_OPTIONS"
+    echo "$MSG_CREATE_VM_OPT_CORES"
+    echo "$MSG_CREATE_VM_OPT_MEMORY"
+    echo "$MSG_CREATE_VM_OPT_DISK"
+    echo "$MSG_CREATE_VM_OPT_VLAN"
+    echo "$MSG_CREATE_VM_OPT_FULL"
+    echo "$MSG_CREATE_VM_OPT_ONBOOT"
+    echo "$MSG_CREATE_VM_OPT_START"
     echo ""
-    echo "Voorbeelden:"
+    echo "$MSG_CREATE_VM_EXAMPLES"
     echo "  $0 web-01 110 webserver"
     echo "  $0 docker-prod 120 docker --cores 4 --memory 8192 --disk 50G --start"
     echo "  $0 docker-prod 120 docker --vlan 100 --start"
@@ -107,7 +116,7 @@ get_snippet() {
         if [[ -n "$result" ]]; then
             echo "$result"
         else
-            log_error "Onbekend type: $type (gebruik '$0' zonder argumenten voor beschikbare types)"
+            log_error "$MSG_CREATE_VM_UNKNOWN_TYPE"
         fi
     else
         case $type in
@@ -117,7 +126,7 @@ get_snippet() {
             homelab)   echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/homelab-cloud-config.yaml" ;;
             minio)     echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/minio-cloud-config.yaml" ;;
             appwrite)  echo "${SNIPPET_STORAGE}:${SNIPPET_PATH}/appwrite-cloud-config.yaml" ;;
-            *)         log_error "Onbekend type: $type (kies uit: base, docker, webserver, homelab, minio, appwrite)" ;;
+            *)         log_error "$MSG_CREATE_VM_UNKNOWN_TYPE_LIST" ;;
         esac
     fi
 }
@@ -125,7 +134,7 @@ get_snippet() {
 get_defaults_for_type() {
     local type=$1
     if [[ "$USE_REGISTRY" == true ]]; then
-        apply_defaults_for_type "$type" || log_error "Onbekend type: $type"
+        apply_defaults_for_type "$type" || log_error "$MSG_CREATE_VM_UNKNOWN_TYPE"
     else
         case $type in
             base)      CORES=${CORES:-$DEFAULT_CORES}; MEMORY=${MEMORY:-$DEFAULT_MEMORY} ;;
@@ -134,7 +143,7 @@ get_defaults_for_type() {
             homelab)   CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
             minio)     CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
             appwrite)  CORES=${CORES:-4};               MEMORY=${MEMORY:-4096} ;;
-            *)         log_error "Onbekend type: $type" ;;
+            *)         log_error "$MSG_CREATE_VM_UNKNOWN_TYPE" ;;
         esac
     fi
 }
@@ -163,7 +172,7 @@ while [[ $# -gt 0 ]]; do
         --full)    CLONE_TYPE="full"; shift ;;
         --onboot)  ONBOOT=true;   shift ;;
         --start)   START_AFTER=true;  shift ;;
-        *)         log_error "Onbekende optie: $1" ;;
+        *)         log_error "$MSG_CREATE_VM_UNKNOWN_OPTION" ;;
     esac
 done
 
@@ -184,21 +193,21 @@ fi
 
 # ── Validatie ─────────────────────────────────
 # Check of template bestaat
-qm status "$TEMPLATE_ID" &>/dev/null || log_error "Template $TEMPLATE_ID niet gevonden"
+qm status "$TEMPLATE_ID" &>/dev/null || log_error "$MSG_CREATE_VM_TPL_NOT_FOUND"
 
 # Check of VM ID al bestaat
 if qm status "$VM_ID" &>/dev/null 2>&1; then
-    log_error "VM ID $VM_ID bestaat al"
+    log_error "$MSG_CREATE_VM_ID_EXISTS"
 fi
 
 # Check of snippet bestand bestaat
 SNIPPET_FILE="/var/lib/vz/${SNIPPET_PATH}/$(basename "$SNIPPET")"
-[[ -f "$SNIPPET_FILE" ]] || log_error "Snippet niet gevonden: $SNIPPET_FILE"
+[[ -f "$SNIPPET_FILE" ]] || log_error "$MSG_CREATE_VM_SNIPPET_NOT_FOUND"
 
 # ── VM aanmaken ───────────────────────────────
 echo ""
 echo -e "${BLUE}════════════════════════════════════════${NC}"
-echo -e "${BLUE}  VM aanmaken: ${GREEN}$VM_NAME${NC}"
+echo -e "${BLUE}  ${MSG_CREATE_VM_HEADER}${NC}"
 echo -e "${BLUE}════════════════════════════════════════${NC}"
 echo ""
 log_info "Type:     $VM_TYPE"
@@ -212,54 +221,54 @@ log_info "Snippet:  $SNIPPET"
 echo ""
 
 # Clone
-log_info "Template $TEMPLATE_ID klonen..."
+log_info "$MSG_CREATE_VM_CLONING"
 if [[ "$CLONE_TYPE" == "full" ]]; then
     qm clone "$TEMPLATE_ID" "$VM_ID" --name "$VM_NAME" --full 1
 else
     qm clone "$TEMPLATE_ID" "$VM_ID" --name "$VM_NAME" --full 0
 fi
-log_success "VM gekloond"
+log_success "$MSG_CREATE_VM_CLONED"
 
 # Resources instellen
-log_info "Resources configureren..."
+log_info "$MSG_CREATE_VM_CONFIGURING_RESOURCES"
 qm set "$VM_ID" --cores "$CORES" --memory "$MEMORY"
-log_success "CPU: ${CORES} cores, RAM: ${MEMORY}MB"
+log_success "$MSG_CREATE_VM_RESOURCES_SET"
 
 # VLAN tag instellen indien opgegeven
 if [[ -n "$VLAN_TAG" ]]; then
-    log_info "VLAN tag $VLAN_TAG instellen..."
+    log_info "$MSG_CREATE_VM_SETTING_VLAN"
     CURRENT_NET=$(qm config "$VM_ID" | grep "^net0:" | cut -d' ' -f2)
     qm set "$VM_ID" --net0 "${CURRENT_NET},tag=${VLAN_TAG}"
-    log_success "VLAN tag $VLAN_TAG ingesteld"
+    log_success "$MSG_CREATE_VM_VLAN_SET"
 fi
 
 # Cloud-init snippet koppelen
-log_info "Cloud-init configureren..."
+log_info "$MSG_CREATE_VM_CONFIGURING_CLOUDINIT"
 qm set "$VM_ID" --cicustom "user=${SNIPPET}"
 qm set "$VM_ID" --ipconfig0 ip=dhcp
-log_success "Snippet gekoppeld: $SNIPPET"
+log_success "$MSG_CREATE_VM_SNIPPET_LINKED"
 
 # Disk resizen indien gewenst
 if [[ -n "$DISK_SIZE" ]]; then
-    log_info "Disk resizen naar $DISK_SIZE..."
+    log_info "$MSG_CREATE_VM_RESIZING_DISK"
     qm disk resize "$VM_ID" virtio0 "$DISK_SIZE"
-    log_success "Disk geresized naar $DISK_SIZE"
+    log_success "$MSG_CREATE_VM_DISK_RESIZED"
 fi
 
 # Onboot instellen (--start impliceert --onboot)
 if [[ "$START_AFTER" == true || "$ONBOOT" == true ]]; then
     qm set "$VM_ID" --onboot 1
-    log_success "Onboot ingeschakeld"
+    log_success "$MSG_CREATE_VM_ONBOOT_ENABLED"
 fi
 
 # Starten indien gewenst
 if [[ "$START_AFTER" == true ]]; then
-    log_info "VM starten..."
+    log_info "$MSG_CREATE_VM_STARTING"
     qm start "$VM_ID"
-    log_success "VM gestart"
+    log_success "$MSG_CREATE_VM_STARTED"
 
     # Wacht op QEMU Guest Agent voor IP adres
-    log_info "Wachten op IP adres (max 60s)..."
+    log_info "$MSG_CREATE_VM_WAITING_IP"
     for _ in $(seq 1 12); do
         sleep 5
         IP=$(qm guest cmd "$VM_ID" network-get-interfaces 2>/dev/null | \
@@ -272,9 +281,9 @@ if [[ "$START_AFTER" == true ]]; then
 
     # Hostname instellen via guest agent
     if qm guest cmd "$VM_ID" ping 2>/dev/null; then
-        log_info "Hostname instellen op '$VM_NAME'..."
+        log_info "$MSG_CREATE_VM_SETTING_HOSTNAME"
         qm guest exec "$VM_ID" -- hostnamectl set-hostname "$VM_NAME" 2>/dev/null || true
-        log_success "Hostname ingesteld"
+        log_success "$MSG_CREATE_VM_HOSTNAME_SET"
     fi
 
     # Service health check
@@ -303,7 +312,7 @@ qm set "$VM_ID" --description "$(echo -e "$VM_NOTES")" 2>/dev/null || true
 # ── Samenvatting ──────────────────────────────
 echo ""
 echo -e "${GREEN}════════════════════════════════════════${NC}"
-echo -e "${GREEN}  VM succesvol aangemaakt!${NC}"
+echo -e "${GREEN}  ${MSG_CREATE_VM_SUCCESS_HEADER}${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
 echo -e "  Naam:     ${GREEN}$VM_NAME${NC}"
@@ -321,7 +330,7 @@ if [[ -n "$IP" ]]; then
     if [[ "$USE_REGISTRY" == true ]]; then
         POSTINFO=$(get_postinfo "$VM_TYPE")
         if [[ -n "$POSTINFO" ]]; then
-            echo -e "  Toegang:  ${YELLOW}${POSTINFO//<IP>/$IP}${NC}"
+            echo -e "  ${MSG_CREATE_VM_ACCESS}  ${YELLOW}${POSTINFO//<IP>/$IP}${NC}"
         fi
     else
         [[ "$VM_TYPE" == "docker" || "$VM_TYPE" == "homelab" ]] && \

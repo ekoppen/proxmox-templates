@@ -16,6 +16,16 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Load lang file for error message
+for _lp in "$SCRIPT_DIR/../lib" "/root/lib"; do
+    if [[ -f "$_lp/config.sh" ]]; then source "$_lp/config.sh" 2>/dev/null || true; fi
+    LANG_CHOICE="${LANG_CHOICE:-en}"
+    if [[ -f "$_lp/lang/${LANG_CHOICE}.sh" ]]; then
+        source "$_lp/lang/${LANG_CHOICE}.sh"
+        break
+    fi
+done
+
 case "$(basename "$0")" in
     quick-docker.sh)
         exec "$SCRIPT_DIR/create-vm.sh" "$1" "$2" docker --cores 4 --memory 4096 --disk 50G "${@:3}" ;;
@@ -32,6 +42,6 @@ case "$(basename "$0")" in
     quick-appwrite.sh)
         exec "$SCRIPT_DIR/create-vm.sh" "$1" "$2" appwrite --cores 4 --memory 4096 --disk 50G "${@:3}" ;;
     *)
-        echo "Onbekend script: $(basename "$0")"
+        echo "$MSG_QUICK_UNKNOWN"
         exit 1 ;;
 esac
