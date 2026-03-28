@@ -136,17 +136,17 @@ check_host_memory() {
 wait_for_service() {
     local url=$1 max_wait=${2:-120}
     [[ -z "$url" ]] && return 0
-    log_info "Wachten op service ($url)..."
+    log_info "${MSG_COMMON_WAITING_FOR_SERVICE:-Waiting for service ($url)...}"
     local elapsed=0
     while [[ $elapsed -lt $max_wait ]]; do
         if curl -skf -o /dev/null --connect-timeout 3 "$url" 2>/dev/null; then
-            log_success "Service bereikbaar"
+            log_success "${MSG_COMMON_SERVICE_REACHABLE:-Service reachable}"
             return 0
         fi
         sleep 5
         elapsed=$((elapsed + 5))
     done
-    log_warn "Service nog niet bereikbaar na ${max_wait}s (kan nog opstarten)"
+    log_warn "${MSG_COMMON_SERVICE_NOT_REACHABLE:-Service not reachable after ${max_wait}s}"
     return 1
 }
 

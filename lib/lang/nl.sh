@@ -622,6 +622,8 @@ MSG_SETUP_CONFIG="Configuratie:"
 MSG_SETUP_SSH_KEYS_SET="key(s) ingesteld"
 MSG_SETUP_SSH_KEYS_NOT_SET="niet ingesteld (handmatig aanpassen)"
 MSG_SETUP_NEXT_STEP="Volgende stap:"
+MSG_SETUP_NEXT_STEP_DESC1="Dit installeert de snippets en scripts op"
+MSG_SETUP_NEXT_STEP_DESC2="je Proxmox server."
 
 # ── INSTALL ─────────────────────────────────────
 MSG_INSTALL_TITLE="Proxmox VM Templates - Installatie"
