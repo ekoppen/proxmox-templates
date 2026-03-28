@@ -614,27 +614,131 @@ update_vms_menu() {
     read -r
 }
 
+# ── PVE Host: Systeemupdates ──────────────────
+pve_update_menu() {
+    clear
+    show_banner
+    echo -e "${BLUE}══ PVE Systeemupdates ══${NC}"
+    echo ""
+
+    log_info "Pakketlijsten ophalen..."
+    apt update -qq
+
+    UPGRADABLE=$(apt list --upgradable 2>/dev/null | grep -v "^Listing")
+
+    if [[ -z "$UPGRADABLE" ]]; then
+        log_success "Systeem is up-to-date. Geen updates beschikbaar."
+        echo ""
+        echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+        read -r
+        return
+    fi
+
+    echo ""
+    echo -e "${YELLOW}Beschikbare updates:${NC}"
+    echo "$UPGRADABLE"
+    echo ""
+
+    UPGRADE_COUNT=$(echo "$UPGRADABLE" | wc -l | tr -d ' ')
+    echo -e "${BLUE}${UPGRADE_COUNT} pakket(ten) kunnen worden bijgewerkt.${NC}"
+    echo ""
+
+    if confirm "Updates installeren" "${UPGRADE_COUNT} update(s) beschikbaar.\n\nWil je deze updates nu installeren?"; then
+        echo ""
+        log_info "Updates worden geïnstalleerd..."
+        apt dist-upgrade -y
+        echo ""
+        log_success "Updates succesvol geïnstalleerd."
+
+        if [[ -f /var/run/reboot-required ]]; then
+            echo ""
+            log_warn "Een herstart is vereist om alle updates te activeren."
+            log_warn "Gebruik: reboot"
+        fi
+    else
+        log_info "Updates overgeslagen."
+    fi
+
+    echo ""
+    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    read -r
+}
+
+# ── PVE Host: Opslag-overzicht ───────────────
+pve_storage_menu() {
+    clear
+    show_banner
+    echo -e "${BLUE}══ PVE Opslag-overzicht ══${NC}"
+    echo ""
+
+    if ! command -v pvesm &>/dev/null; then
+        log_error "pvesm niet gevonden. Is dit een Proxmox VE server?"
+    fi
+
+    printf "%-15s %-10s %10s %10s %10s %8s\n" \
+        "NAAM" "TYPE" "TOTAAL" "GEBRUIKT" "VRIJ" "GEBRUIK"
+    printf "%-15s %-10s %10s %10s %10s %8s\n" \
+        "───────────────" "──────────" "──────────" "──────────" "──────────" "────────"
+
+    pvesm status 2>/dev/null | tail -n +2 | while read -r NAME TYPE STATUS TOTAL USED AVAILABLE PERCENTAGE; do
+        [[ -z "$NAME" ]] && continue
+
+        if [[ "$TOTAL" =~ ^[0-9]+$ ]] && [[ "$TOTAL" -gt 0 ]]; then
+            TOTAL_H=$(numfmt --to=iec-i --suffix=B "$TOTAL" 2>/dev/null || echo "${TOTAL}B")
+            USED_H=$(numfmt --to=iec-i --suffix=B "$USED" 2>/dev/null || echo "${USED}B")
+            AVAIL_H=$(numfmt --to=iec-i --suffix=B "$AVAILABLE" 2>/dev/null || echo "${AVAILABLE}B")
+
+            PCT=$((USED * 100 / TOTAL))
+            PCT_STR="${PCT}%"
+
+            if [[ $PCT -ge 90 ]]; then
+                COLOR=$RED
+            elif [[ $PCT -ge 70 ]]; then
+                COLOR=$YELLOW
+            else
+                COLOR=$GREEN
+            fi
+
+            printf "%-15s %-10s %10s %10s %10s ${COLOR}%8s${NC}\n" \
+                "$NAME" "$TYPE" "$TOTAL_H" "$USED_H" "$AVAIL_H" "$PCT_STR"
+        else
+            printf "%-15s %-10s %10s %10s %10s %8s\n" \
+                "$NAME" "$TYPE" "-" "-" "-" "N/A"
+        fi
+    done
+
+    echo ""
+    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    read -r
+}
+
 # ── Hoofdmenu ─────────────────────────────────
 main_menu() {
     while true; do
         local choice
-        choice=$(menu_select "Hoofdmenu" "Wat wil je doen?" 20 \
+        choice=$(menu_select "Hoofdmenu" "Wat wil je doen?" 22 \
             "aanmaken"     "VM aanmaken" \
             "overzicht"    "VM overzicht" \
             "verwijderen"  "VM verwijderen" \
             "backup"       "VM backup" \
             "updaten"      "VMs bijwerken (apt upgrade)" \
             "gebruikers"   "Gebruikersbeheer (wachtwoord/users)" \
+            "---"          "────────────────────────────────" \
+            "pve-updates"  "PVE host: Systeemupdates" \
+            "pve-opslag"   "PVE host: Opslag-overzicht" \
             "afsluiten"    "Menu sluiten") || break
 
         case "$choice" in
-            aanmaken)    create_vm_flow ;;
-            overzicht)   show_vm_list ;;
-            verwijderen) delete_vm_menu ;;
-            backup)      backup_vm_menu ;;
-            updaten)     update_vms_menu ;;
-            gebruikers)  manage_users_menu ;;
-            afsluiten)   break ;;
+            aanmaken)     create_vm_flow ;;
+            overzicht)    show_vm_list ;;
+            verwijderen)  delete_vm_menu ;;
+            backup)       backup_vm_menu ;;
+            updaten)      update_vms_menu ;;
+            gebruikers)   manage_users_menu ;;
+            "---")        ;; # separator, doe niets
+            pve-updates)  pve_update_menu ;;
+            pve-opslag)   pve_storage_menu ;;
+            afsluiten)    break ;;
         esac
     done
 }
