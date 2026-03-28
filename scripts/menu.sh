@@ -21,8 +21,8 @@ if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
 elif [[ -f "/root/lib/common.sh" ]]; then
     LIB_DIR="/root/lib"
 else
-    echo "FOUT: lib/ directory niet gevonden"
-    echo "Verwacht in: $SCRIPT_DIR/../lib/ of /root/lib/"
+    echo "$MSG_MENU_LIB_NOT_FOUND"
+    echo "$MSG_MENU_LIB_EXPECTED"
     exit 1
 fi
 
@@ -35,14 +35,8 @@ check_whiptail
 
 # ── Welkomscherm ──────────────────────────────
 show_welcome() {
-    whiptail --backtitle "$BACKTITLE" --title "Welkom" --msgbox \
-"Proxmox VM Manager
-
-Maak snel nieuwe VMs aan vanuit cloud-init templates.
-Selecteer een servertype, pas eventueel de instellingen
-aan en de VM wordt automatisch aangemaakt.
-
-Beschikbare types:
+    whiptail --backtitle "$BACKTITLE" --title "$MSG_MENU_WELCOME_TITLE" --msgbox \
+"$MSG_MENU_WELCOME_TEXT
 $(for key in "${TYPE_ORDER[@]}"; do
     printf "  %-12s %s\n" "$key" "${TYPE_DESCRIPTIONS[$key]}"
 done)" 20 65
@@ -56,37 +50,37 @@ select_type() {
     done
     menu_items+=("haos" "Home Assistant OS - Smart home platform")
 
-    SELECTED_TYPE=$(menu_select "Server Type" "Kies een server type:" 22 "${menu_items[@]}") || return 1
+    SELECTED_TYPE=$(menu_select "$MSG_MENU_SELECT_TYPE_TITLE" "$MSG_MENU_SELECT_TYPE_PROMPT" 22 "${menu_items[@]}") || return 1
 }
 
 # ── Modus selectie ────────────────────────────
 select_mode() {
-    MODE=$(menu_select "Installatie Modus" "Kies een modus:" 12 \
-        "standaard" "Standaard (aanbevolen) - automatische instellingen" \
-        "geavanceerd" "Geavanceerd - alle opties handmatig instellen") || return 1
+    MODE=$(menu_select "$MSG_MENU_MODE_TITLE" "$MSG_MENU_MODE_PROMPT" 12 \
+        "$MSG_MENU_MODE_STANDARD_KEY" "$MSG_MENU_MODE_STANDARD" \
+        "$MSG_MENU_MODE_ADVANCED_KEY" "$MSG_MENU_MODE_ADVANCED") || return 1
 }
 
 # ── VM naam en ID invoer ──────────────────────
 input_vm_basics() {
     # VM Naam
-    VM_NAME=$(input_box "VM Naam" "Geef een naam voor de VM:" "${SELECTED_TYPE}-01") || return 1
-    [[ -z "$VM_NAME" ]] && { msg_info "Fout" "VM naam mag niet leeg zijn."; return 1; }
+    VM_NAME=$(input_box "$MSG_MENU_VM_NAME_TITLE" "$MSG_MENU_VM_NAME_PROMPT" "${SELECTED_TYPE}-01") || return 1
+    [[ -z "$VM_NAME" ]] && { msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_NAME_EMPTY"; return 1; }
 
     # VM ID - suggereer volgende beschikbare
     local suggested_id
     suggested_id=$(next_vmid 100)
-    VM_ID=$(input_box "VM ID" "Geef een VM ID (nummer):" "$suggested_id") || return 1
-    [[ -z "$VM_ID" ]] && { msg_info "Fout" "VM ID mag niet leeg zijn."; return 1; }
+    VM_ID=$(input_box "$MSG_MENU_VM_ID_TITLE" "$MSG_MENU_VM_ID_PROMPT" "$suggested_id") || return 1
+    [[ -z "$VM_ID" ]] && { msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_ID_EMPTY"; return 1; }
 
     # Valideer dat ID een nummer is
     if ! [[ "$VM_ID" =~ ^[0-9]+$ ]]; then
-        msg_info "Fout" "VM ID moet een nummer zijn."
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_ID_NOT_NUMBER"
         return 1
     fi
 
     # Check of ID al in gebruik is
     if qm status "$VM_ID" &>/dev/null 2>&1; then
-        msg_info "Fout" "VM ID $VM_ID is al in gebruik.\nKies een ander ID."
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_ID_IN_USE"
         return 1
     fi
 }
@@ -95,36 +89,36 @@ input_vm_basics() {
 input_advanced() {
     # CPU cores
     local default_cores="${TYPE_CORES[$SELECTED_TYPE]}"
-    CORES=$(input_box "CPU Cores" "Aantal CPU cores:" "$default_cores") || return 1
+    CORES=$(input_box "$MSG_MENU_CORES_TITLE" "$MSG_MENU_CORES_PROMPT" "$default_cores") || return 1
 
     # Memory
     local default_memory="${TYPE_MEMORY[$SELECTED_TYPE]}"
-    MEMORY=$(input_box "RAM (MB)" "RAM in megabytes:" "$default_memory") || return 1
+    MEMORY=$(input_box "$MSG_MENU_MEMORY_TITLE" "$MSG_MENU_MEMORY_PROMPT" "$default_memory") || return 1
 
     # Disk size
     local default_disk="${TYPE_DISK[$SELECTED_TYPE]}"
     if [[ -n "$default_disk" ]]; then
-        DISK_SIZE=$(input_box "Disk Grootte" "Disk grootte (bijv. 50G, leeg = niet resizen):" "$default_disk") || return 1
+        DISK_SIZE=$(input_box "$MSG_MENU_DISK_TITLE" "$MSG_MENU_DISK_PROMPT_WITH_DEFAULT" "$default_disk") || return 1
     else
-        DISK_SIZE=$(input_box "Disk Grootte" "Disk grootte (bijv. 32G, leeg = niet resizen):" "") || return 1
+        DISK_SIZE=$(input_box "$MSG_MENU_DISK_TITLE" "$MSG_MENU_DISK_PROMPT_NO_DEFAULT" "") || return 1
     fi
 
     # Clone type
-    CLONE_TYPE=$(menu_select "Clone Type" "Kies clone type:" 12 \
-        "linked" "Linked clone (snel, deelt base disk)" \
-        "full" "Full clone (onafhankelijk, meer ruimte)") || return 1
+    CLONE_TYPE=$(menu_select "$MSG_MENU_CLONE_TITLE" "$MSG_MENU_CLONE_PROMPT" 12 \
+        "linked" "$MSG_MENU_CLONE_LINKED" \
+        "full" "$MSG_MENU_CLONE_FULL") || return 1
 
     # VLAN
-    VLAN_TAG=$(input_box "VLAN" "VLAN tag (leeg = geen VLAN):" "") || return 1
+    VLAN_TAG=$(input_box "$MSG_MENU_VLAN_TITLE" "$MSG_MENU_VLAN_PROMPT" "") || return 1
 
     # Auto-start
-    if confirm "Auto-start" "VM direct starten na aanmaken?"; then
+    if confirm "$MSG_MENU_AUTOSTART_TITLE" "$MSG_MENU_AUTOSTART_PROMPT"; then
         START_AFTER="--start"
         ONBOOT=""
     else
         START_AFTER=""
         # Alleen onboot vragen als --start niet gekozen is
-        if confirm "Onboot" "VM automatisch starten bij host reboot?"; then
+        if confirm "$MSG_MENU_ONBOOT_TITLE" "$MSG_MENU_ONBOOT_PROMPT"; then
             ONBOOT="--onboot"
         else
             ONBOOT=""
@@ -134,24 +128,24 @@ input_advanced() {
 
 # ── Bevestigingsscherm ────────────────────────
 show_confirmation() {
-    local disk_info="niet resizen"
+    local disk_info="$MSG_MENU_CONFIRM_DISK_NO_RESIZE"
     [[ -n "$DISK_SIZE" ]] && disk_info="$DISK_SIZE"
 
-    local start_info="Nee"
-    [[ -n "$START_AFTER" ]] && start_info="Ja"
+    local start_info="$MSG_COMMON_NO"
+    [[ -n "$START_AFTER" ]] && start_info="$MSG_COMMON_YES"
 
-    local onboot_info="Nee"
-    [[ -n "$START_AFTER" || -n "$ONBOOT" ]] && onboot_info="Ja"
+    local onboot_info="$MSG_COMMON_NO"
+    [[ -n "$START_AFTER" || -n "$ONBOOT" ]] && onboot_info="$MSG_COMMON_YES"
 
-    local vlan_info="geen"
+    local vlan_info="$MSG_MENU_CONFIRM_VLAN_NONE"
     [[ -n "$VLAN_TAG" ]] && vlan_info="$VLAN_TAG"
 
     local postinfo="${TYPE_POSTINFO[$SELECTED_TYPE]}"
     local postinfo_line=""
-    [[ -n "$postinfo" ]] && postinfo_line="\nToegang:    $postinfo"
+    [[ -n "$postinfo" ]] && postinfo_line="\n$MSG_MENU_CONFIRM_ACCESS    $postinfo"
 
-    whiptail --backtitle "$BACKTITLE" --title "Bevestiging" --yesno \
-"De volgende VM wordt aangemaakt:
+    whiptail --backtitle "$BACKTITLE" --title "$MSG_MENU_CONFIRM_TITLE" --yesno \
+"$MSG_MENU_CONFIRM_TEXT
 
   Naam:       $VM_NAME
   ID:         $VM_ID
@@ -165,7 +159,7 @@ show_confirmation() {
   Onboot:     $onboot_info
 $postinfo_line
 
-Doorgaan?" 23 60
+$MSG_MENU_CONFIRM_CONTINUE" 23 60
 }
 
 # ── VM aanmaken ───────────────────────────────
@@ -186,12 +180,12 @@ create_vm() {
     elif [[ -f "/root/scripts/create-vm.sh" ]]; then
         create_script="/root/scripts/create-vm.sh"
     else
-        log_error "create-vm.sh niet gevonden"
+        log_error "$MSG_MENU_CREATE_VM_NOT_FOUND"
     fi
 
     clear
     show_banner
-    echo -e "${BLUE}VM aanmaken met de volgende instellingen:${NC}"
+    echo -e "${BLUE}$MSG_MENU_CREATING_VM${NC}"
     echo ""
 
     # Voer create-vm.sh uit
@@ -200,9 +194,9 @@ create_vm() {
 
     echo ""
     if [[ $exit_code -eq 0 ]]; then
-        echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+        echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     else
-        echo -e "${RED}Er is een fout opgetreden. Druk op Enter om terug te gaan...${NC}"
+        echo -e "${RED}$MSG_MENU_ERROR_OCCURRED${NC}"
     fi
     read -r
 }
@@ -215,32 +209,32 @@ show_vm_list() {
     elif [[ -f "/root/scripts/list-vms.sh" ]]; then
         list_script="/root/scripts/list-vms.sh"
     else
-        msg_info "Fout" "list-vms.sh niet gevonden"
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_LIST_NOT_FOUND"
         return
     fi
 
     clear
     bash "$list_script"
     echo ""
-    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     read -r
 }
 
 # ── VM verwijderen ────────────────────────────
 delete_vm_menu() {
     local vmid
-    vmid=$(input_box "VM Verwijderen" "Geef het VM ID om te verwijderen:" "") || return
+    vmid=$(input_box "$MSG_MENU_DELETE_TITLE" "$MSG_MENU_DELETE_PROMPT" "") || return
     [[ -z "$vmid" ]] && return
 
     if ! qm status "$vmid" &>/dev/null 2>&1; then
-        msg_info "Fout" "VM $vmid niet gevonden."
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_DELETE_VM_NOT_FOUND"
         return
     fi
 
     local name
     name=$(qm config "$vmid" 2>/dev/null | grep "^name:" | awk '{print $2}')
 
-    if confirm "Bevestiging" "VM $vmid ($name) verwijderen?\n\nDit kan niet ongedaan gemaakt worden!"; then
+    if confirm "$MSG_COMMON_CONFIRM" "$MSG_MENU_DELETE_CONFIRM"; then
         clear
         local delete_script
         if [[ -f "$SCRIPT_DIR/delete-vm.sh" ]]; then
@@ -248,11 +242,11 @@ delete_vm_menu() {
         elif [[ -f "/root/scripts/delete-vm.sh" ]]; then
             delete_script="/root/scripts/delete-vm.sh"
         else
-            log_error "delete-vm.sh niet gevonden"
+            log_error "$MSG_MENU_DELETE_SCRIPT_NOT_FOUND"
         fi
         bash "$delete_script" "$vmid" --force
         echo ""
-        echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+        echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
         read -r
     fi
 }
@@ -275,8 +269,8 @@ check_template() {
 
     # Check of template bestaat
     if ! qm status "$tpl_id" &>/dev/null 2>&1; then
-        if confirm "Template Ontbreekt" \
-            "Template $tpl_id niet gevonden.\n\nWil je automatisch een Debian 12 cloud template aanmaken?\n\n(Dit downloadt het officiële cloud image en maakt een template aan)"; then
+        if confirm "$MSG_MENU_TPL_MISSING_TITLE" \
+            "$MSG_MENU_TPL_MISSING_TEXT"; then
 
             # Zoek create-template.sh
             local tpl_script=""
@@ -289,21 +283,21 @@ check_template() {
             if [[ -n "$tpl_script" ]]; then
                 clear
                 show_banner
-                echo -e "${BLUE}Template aanmaken...${NC}"
+                echo -e "${BLUE}$MSG_MENU_TPL_CREATING${NC}"
                 echo ""
                 bash "$tpl_script" --id "$tpl_id" --auto
                 local exit_code=$?
                 echo ""
                 if [[ $exit_code -eq 0 ]]; then
-                    echo -e "${GREEN}Template aangemaakt. Druk op Enter om door te gaan...${NC}"
+                    echo -e "${GREEN}$MSG_MENU_TPL_CREATED${NC}"
                 else
-                    echo -e "${RED}Template aanmaken mislukt. Druk op Enter om terug te gaan...${NC}"
+                    echo -e "${RED}$MSG_MENU_TPL_FAILED${NC}"
                     read -r
                     return 1
                 fi
                 read -r
             else
-                msg_info "Fout" "create-template.sh niet gevonden.\n\nInstalleer opnieuw met install.sh."
+                msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_TPL_SCRIPT_NOT_FOUND"
                 return 1
             fi
         else
@@ -317,52 +311,51 @@ check_template() {
 # ── HAOS Aanmaak Flow ────────────────────────
 create_haos_flow() {
     # VM Naam
-    VM_NAME=$(input_box "VM Naam" "Geef een naam voor de VM:" "haos-01") || return 1
-    [[ -z "$VM_NAME" ]] && { msg_info "Fout" "VM naam mag niet leeg zijn."; return 1; }
+    VM_NAME=$(input_box "$MSG_MENU_VM_NAME_TITLE" "$MSG_MENU_VM_NAME_PROMPT" "$MSG_MENU_HAOS_NAME_DEFAULT") || return 1
+    [[ -z "$VM_NAME" ]] && { msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_NAME_EMPTY"; return 1; }
 
     # VM ID
     local suggested_id
     suggested_id=$(next_vmid 300)
-    VM_ID=$(input_box "VM ID" "Geef een VM ID (nummer):" "$suggested_id") || return 1
-    [[ -z "$VM_ID" ]] && { msg_info "Fout" "VM ID mag niet leeg zijn."; return 1; }
+    VM_ID=$(input_box "$MSG_MENU_VM_ID_TITLE" "$MSG_MENU_VM_ID_PROMPT" "$suggested_id") || return 1
+    [[ -z "$VM_ID" ]] && { msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_ID_EMPTY"; return 1; }
 
     if ! [[ "$VM_ID" =~ ^[0-9]+$ ]]; then
-        msg_info "Fout" "VM ID moet een nummer zijn."
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_ID_NOT_NUMBER"
         return 1
     fi
 
     if qm status "$VM_ID" &>/dev/null 2>&1; then
-        msg_info "Fout" "VM ID $VM_ID is al in gebruik.\nKies een ander ID."
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_VM_ID_IN_USE"
         return 1
     fi
 
     # Versie (leeg = nieuwste)
-    HAOS_VERSION=$(input_box "HAOS Versie" "HAOS versie (leeg = nieuwste):" "") || return 1
+    HAOS_VERSION=$(input_box "$MSG_MENU_HAOS_VERSION_TITLE" "$MSG_MENU_HAOS_VERSION_PROMPT" "") || return 1
 
     # VLAN
-    VLAN_TAG=$(input_box "VLAN" "VLAN tag (leeg = geen VLAN):" "") || return 1
+    VLAN_TAG=$(input_box "$MSG_MENU_VLAN_TITLE" "$MSG_MENU_VLAN_PROMPT" "") || return 1
 
     # Bevestiging
-    local version_info="nieuwste (auto-detectie)"
+    local version_info="$MSG_MENU_HAOS_VERSION_LATEST"
     [[ -n "$HAOS_VERSION" ]] && version_info="$HAOS_VERSION"
 
-    local vlan_info="geen"
+    local vlan_info="$MSG_MENU_CONFIRM_VLAN_NONE"
     [[ -n "$VLAN_TAG" ]] && vlan_info="$VLAN_TAG"
 
-    whiptail --backtitle "$BACKTITLE" --title "Bevestiging" --yesno \
-"Home Assistant OS VM wordt aangemaakt:
+    whiptail --backtitle "$BACKTITLE" --title "$MSG_MENU_CONFIRM_TITLE" --yesno \
+"$MSG_MENU_HAOS_CONFIRM_TEXT
 
   Naam:     $VM_NAME
   ID:       $VM_ID
   Versie:   $version_info
   VLAN:     $vlan_info
-  BIOS:     UEFI (OVMF)
-  Machine:  q35
+  BIOS:     $MSG_MENU_HAOS_CONFIRM_BIOS
+  Machine:  $MSG_MENU_HAOS_CONFIRM_MACHINE
 
-Dit is een appliance image (geen cloud-init).
-De VM wordt automatisch gestart.
+$MSG_MENU_HAOS_CONFIRM_APPLIANCE
 
-Doorgaan?" 19 60 || return 1
+$MSG_MENU_CONFIRM_CONTINUE" 19 60 || return 1
 
     # Zoek create-haos-vm.sh
     local haos_script
@@ -371,7 +364,7 @@ Doorgaan?" 19 60 || return 1
     elif [[ -f "/root/scripts/create-haos-vm.sh" ]]; then
         haos_script="/root/scripts/create-haos-vm.sh"
     else
-        log_error "create-haos-vm.sh niet gevonden"
+        log_error "$MSG_MENU_HAOS_SCRIPT_NOT_FOUND"
     fi
 
     local cmd_args=("$VM_NAME" "$VM_ID" "--start")
@@ -380,7 +373,7 @@ Doorgaan?" 19 60 || return 1
 
     clear
     show_banner
-    echo -e "${BLUE}Home Assistant OS VM aanmaken...${NC}"
+    echo -e "${BLUE}$MSG_MENU_HAOS_CREATING${NC}"
     echo ""
 
     bash "$haos_script" "${cmd_args[@]}"
@@ -388,9 +381,9 @@ Doorgaan?" 19 60 || return 1
 
     echo ""
     if [[ $exit_code -eq 0 ]]; then
-        echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+        echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     else
-        echo -e "${RED}Er is een fout opgetreden. Druk op Enter om terug te gaan...${NC}"
+        echo -e "${RED}$MSG_MENU_ERROR_OCCURRED${NC}"
     fi
     read -r
 }
@@ -416,7 +409,7 @@ create_vm_flow() {
     input_vm_basics || return
 
     # Stap 4: Defaults of geavanceerd
-    if [[ "$MODE" == "geavanceerd" ]]; then
+    if [[ "$MODE" == "$MSG_MENU_MODE_ADVANCED_KEY" ]]; then
         input_advanced || return
     else
         # Standaard: defaults uit registry
@@ -439,15 +432,15 @@ create_vm_flow() {
 # ── VM Backup ────────────────────────────────
 backup_vm_menu() {
     local backup_choice
-    backup_choice=$(menu_select "Backup" "Wat wil je backuppen?" 12 \
-        "specifiek" "Specifieke VM" \
-        "alles"     "Alle VMs") || return
+    backup_choice=$(menu_select "$MSG_MENU_BACKUP_TITLE" "$MSG_MENU_BACKUP_PROMPT" 12 \
+        "$MSG_MENU_BACKUP_SPECIFIC_KEY" "$MSG_MENU_BACKUP_SPECIFIC" \
+        "$MSG_MENU_BACKUP_ALL_KEY"      "$MSG_MENU_BACKUP_ALL") || return
 
     local cmd_args=()
 
-    if [[ "$backup_choice" == "specifiek" ]]; then
+    if [[ "$backup_choice" == "$MSG_MENU_BACKUP_SPECIFIC_KEY" ]]; then
         local vmid
-        vmid=$(input_box "VM ID" "Geef het VM ID om te backuppen:" "") || return
+        vmid=$(input_box "$MSG_MENU_VM_ID_TITLE" "$MSG_MENU_BACKUP_VMID_PROMPT" "") || return
         [[ -z "$vmid" ]] && return
         cmd_args+=("--vmid" "$vmid")
     else
@@ -455,10 +448,10 @@ backup_vm_menu() {
     fi
 
     local mode
-    mode=$(menu_select "Backup Modus" "Kies backup modus:" 13 \
-        "snapshot" "Snapshot (aanbevolen, geen downtime)" \
-        "suspend"  "Suspend (VM pauzeert kort)" \
-        "stop"     "Stop (VM stopt, meest consistent)") || return
+    mode=$(menu_select "$MSG_MENU_BACKUP_MODE_TITLE" "$MSG_MENU_BACKUP_MODE_PROMPT" 13 \
+        "snapshot" "$MSG_MENU_BACKUP_MODE_SNAPSHOT" \
+        "suspend"  "$MSG_MENU_BACKUP_MODE_SUSPEND" \
+        "stop"     "$MSG_MENU_BACKUP_MODE_STOP") || return
     cmd_args+=("--mode" "$mode")
 
     # Zoek backup-vm.sh
@@ -468,29 +461,29 @@ backup_vm_menu() {
     elif [[ -f "/root/scripts/backup-vm.sh" ]]; then
         backup_script="/root/scripts/backup-vm.sh"
     else
-        msg_info "Fout" "backup-vm.sh niet gevonden"
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_BACKUP_SCRIPT_NOT_FOUND"
         return
     fi
 
     clear
     show_banner
-    echo -e "${BLUE}VM Backup starten...${NC}"
+    echo -e "${BLUE}$MSG_MENU_BACKUP_STARTING${NC}"
     echo ""
 
     bash "$backup_script" "${cmd_args[@]}"
     echo ""
-    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     read -r
 }
 
 # ── Gebruikersbeheer ─────────────────────────
 manage_users_menu() {
     local vmid
-    vmid=$(input_box "VM ID" "Geef het VM ID:" "") || return
+    vmid=$(input_box "$MSG_MENU_VM_ID_TITLE" "$MSG_MENU_USERS_VMID_PROMPT" "") || return
     [[ -z "$vmid" ]] && return
 
     if ! qm status "$vmid" &>/dev/null 2>&1; then
-        msg_info "Fout" "VM $vmid niet gevonden."
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_USERS_VM_NOT_FOUND"
         return
     fi
 
@@ -498,12 +491,12 @@ manage_users_menu() {
     name=$(qm config "$vmid" 2>/dev/null | grep "^name:" | awk '{print $2}')
 
     local action
-    action=$(menu_select "Gebruikersbeheer" "VM $vmid ($name) - Wat wil je doen?" 18 \
-        "list"   "Gebruikers tonen" \
-        "passwd" "Wachtwoord (her)instellen" \
-        "add"    "Nieuwe gebruiker aanmaken" \
-        "sshkey" "SSH key toevoegen" \
-        "del"    "Gebruiker verwijderen") || return
+    action=$(menu_select "$MSG_MENU_USERS_TITLE" "$MSG_MENU_USERS_PROMPT" 18 \
+        "list"   "$MSG_MENU_USERS_LIST" \
+        "passwd" "$MSG_MENU_USERS_PASSWD" \
+        "add"    "$MSG_MENU_USERS_ADD" \
+        "sshkey" "$MSG_MENU_USERS_SSHKEY" \
+        "del"    "$MSG_MENU_USERS_DEL") || return
 
     # Zoek manage-vm-user.sh
     local user_script
@@ -512,7 +505,7 @@ manage_users_menu() {
     elif [[ -f "/root/scripts/manage-vm-user.sh" ]]; then
         user_script="/root/scripts/manage-vm-user.sh"
     else
-        msg_info "Fout" "manage-vm-user.sh niet gevonden"
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_USERS_SCRIPT_NOT_FOUND"
         return
     fi
 
@@ -524,39 +517,39 @@ manage_users_menu() {
             ;;
         passwd)
             local user
-            user=$(input_box "Gebruiker" "Wachtwoord instellen voor gebruiker:" "admin") || return
+            user=$(input_box "$MSG_MENU_USERS_PASSWD" "$MSG_MENU_USERS_PASSWD_USER_PROMPT" "admin") || return
             [[ -z "$user" ]] && return
             cmd_args+=("--passwd" "$user")
             ;;
         add)
             local user
-            user=$(input_box "Gebruikersnaam" "Naam voor de nieuwe gebruiker:" "") || return
+            user=$(input_box "$MSG_MENU_USERS_ADD" "$MSG_MENU_USERS_ADD_NAME_PROMPT" "") || return
             [[ -z "$user" ]] && return
             cmd_args+=("--add-user" "$user")
 
-            if confirm "Sudo" "Sudo rechten toekennen aan '$user'?"; then
+            if confirm "$MSG_MENU_USERS_SUDO_TITLE" "$MSG_MENU_USERS_SUDO_PROMPT"; then
                 cmd_args+=("--sudo")
             fi
 
             local ssh_key
-            ssh_key=$(input_box "SSH Key" "SSH public key (leeg = overslaan):" "") || true
+            ssh_key=$(input_box "SSH Key" "$MSG_MENU_USERS_SSH_KEY_PROMPT" "") || true
             [[ -n "$ssh_key" ]] && cmd_args+=("--ssh-key" "$ssh_key")
             ;;
         sshkey)
             local user
-            user=$(input_box "Gebruiker" "SSH key toevoegen voor welke gebruiker:" "admin") || return
+            user=$(input_box "$MSG_MENU_USERS_SSHKEY" "$MSG_MENU_USERS_SSHKEY_USER_PROMPT" "admin") || return
             [[ -z "$user" ]] && return
 
             local ssh_key
-            ssh_key=$(input_box "SSH Key" "Plak de SSH public key:" "") || return
+            ssh_key=$(input_box "SSH Key" "$MSG_MENU_USERS_SSHKEY_PASTE" "") || return
             [[ -z "$ssh_key" ]] && return
             cmd_args+=("--add-ssh-key" "$user" "--ssh-key" "$ssh_key")
             ;;
         del)
             local user
-            user=$(input_box "Gebruiker" "Welke gebruiker verwijderen?" "") || return
+            user=$(input_box "$MSG_MENU_USERS_DEL" "$MSG_MENU_USERS_DEL_PROMPT" "") || return
             [[ -z "$user" ]] && return
-            if ! confirm "Bevestiging" "Gebruiker '$user' verwijderen van VM $vmid ($name)?\n\nDit verwijdert ook de home directory!"; then
+            if ! confirm "$MSG_COMMON_CONFIRM" "$MSG_MENU_USERS_DEL_CONFIRM"; then
                 return
             fi
             cmd_args+=("--del-user" "$user")
@@ -565,27 +558,27 @@ manage_users_menu() {
 
     clear
     show_banner
-    echo -e "${BLUE}Gebruikersbeheer VM $vmid ($name)...${NC}"
+    echo -e "${BLUE}$MSG_MENU_USERS_MANAGING${NC}"
     echo ""
 
     bash "$user_script" "${cmd_args[@]}"
     echo ""
-    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     read -r
 }
 
 # ── VMs Updaten ──────────────────────────────
 update_vms_menu() {
     local update_choice
-    update_choice=$(menu_select "VMs Updaten" "Wat wil je updaten?" 12 \
-        "specifiek" "Specifieke VM" \
-        "alles"     "Alle draaiende VMs") || return
+    update_choice=$(menu_select "$MSG_MENU_UPDATE_TITLE" "$MSG_MENU_UPDATE_PROMPT" 12 \
+        "$MSG_MENU_UPDATE_SPECIFIC_KEY" "$MSG_MENU_UPDATE_SPECIFIC" \
+        "$MSG_MENU_UPDATE_ALL_KEY"      "$MSG_MENU_UPDATE_ALL") || return
 
     local cmd_args=()
 
-    if [[ "$update_choice" == "specifiek" ]]; then
+    if [[ "$update_choice" == "$MSG_MENU_UPDATE_SPECIFIC_KEY" ]]; then
         local vmid
-        vmid=$(input_box "VM ID" "Geef het VM ID om te updaten:" "") || return
+        vmid=$(input_box "$MSG_MENU_VM_ID_TITLE" "$MSG_MENU_UPDATE_VMID_PROMPT" "") || return
         [[ -z "$vmid" ]] && return
         cmd_args+=("--vmid" "$vmid")
     else
@@ -599,18 +592,18 @@ update_vms_menu() {
     elif [[ -f "/root/scripts/update-vms.sh" ]]; then
         update_script="/root/scripts/update-vms.sh"
     else
-        msg_info "Fout" "update-vms.sh niet gevonden"
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_UPDATE_SCRIPT_NOT_FOUND"
         return
     fi
 
     clear
     show_banner
-    echo -e "${BLUE}VMs bijwerken...${NC}"
+    echo -e "${BLUE}$MSG_MENU_UPDATE_STARTING${NC}"
     echo ""
 
     bash "$update_script" "${cmd_args[@]}"
     echo ""
-    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     read -r
 }
 
@@ -618,49 +611,49 @@ update_vms_menu() {
 pve_update_menu() {
     clear
     show_banner
-    echo -e "${BLUE}══ PVE Systeemupdates ══${NC}"
+    echo -e "${BLUE}══ $MSG_MENU_PVE_UPDATES_TITLE ══${NC}"
     echo ""
 
-    log_info "Pakketlijsten ophalen..."
+    log_info "$MSG_MENU_PVE_FETCHING"
     apt update -qq
 
     UPGRADABLE=$(apt list --upgradable 2>/dev/null | grep -v "^Listing")
 
     if [[ -z "$UPGRADABLE" ]]; then
-        log_success "Systeem is up-to-date. Geen updates beschikbaar."
+        log_success "$MSG_MENU_PVE_UP_TO_DATE"
         echo ""
-        echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+        echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
         read -r
         return
     fi
 
     echo ""
-    echo -e "${YELLOW}Beschikbare updates:${NC}"
+    echo -e "${YELLOW}$MSG_MENU_PVE_AVAILABLE_UPDATES${NC}"
     echo "$UPGRADABLE"
     echo ""
 
     UPGRADE_COUNT=$(echo "$UPGRADABLE" | wc -l | tr -d ' ')
-    echo -e "${BLUE}${UPGRADE_COUNT} pakket(ten) kunnen worden bijgewerkt.${NC}"
+    echo -e "${BLUE}$MSG_MENU_PVE_PACKAGES_COUNT${NC}"
     echo ""
 
-    if confirm "Updates installeren" "${UPGRADE_COUNT} update(s) beschikbaar.\n\nWil je deze updates nu installeren?"; then
+    if confirm "$MSG_MENU_PVE_INSTALL_TITLE" "$MSG_MENU_PVE_INSTALL_PROMPT"; then
         echo ""
-        log_info "Updates worden geïnstalleerd..."
+        log_info "$MSG_MENU_PVE_INSTALLING"
         apt dist-upgrade -y
         echo ""
-        log_success "Updates succesvol geïnstalleerd."
+        log_success "$MSG_MENU_PVE_INSTALLED"
 
         if [[ -f /var/run/reboot-required ]]; then
             echo ""
-            log_warn "Een herstart is vereist om alle updates te activeren."
-            log_warn "Gebruik: reboot"
+            log_warn "$MSG_MENU_PVE_REBOOT_REQUIRED"
+            log_warn "$MSG_MENU_PVE_REBOOT_CMD"
         fi
     else
-        log_info "Updates overgeslagen."
+        log_info "$MSG_MENU_PVE_SKIPPED"
     fi
 
     echo ""
-    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     read -r
 }
 
@@ -668,15 +661,15 @@ pve_update_menu() {
 pve_storage_menu() {
     clear
     show_banner
-    echo -e "${BLUE}══ PVE Opslag-overzicht ══${NC}"
+    echo -e "${BLUE}══ $MSG_MENU_PVE_STORAGE_TITLE ══${NC}"
     echo ""
 
     if ! command -v pvesm &>/dev/null; then
-        log_error "pvesm niet gevonden. Is dit een Proxmox VE server?"
+        log_error "$MSG_MENU_PVE_STORAGE_PVESM_NOT_FOUND"
     fi
 
     printf "%-15s %-10s %10s %10s %10s %8s\n" \
-        "NAAM" "TYPE" "TOTAAL" "GEBRUIKT" "VRIJ" "GEBRUIK"
+        "$MSG_MENU_PVE_STORAGE_NAME" "$MSG_MENU_PVE_STORAGE_TYPE" "$MSG_MENU_PVE_STORAGE_TOTAL" "$MSG_MENU_PVE_STORAGE_USED" "$MSG_MENU_PVE_STORAGE_FREE" "$MSG_MENU_PVE_STORAGE_USAGE"
     printf "%-15s %-10s %10s %10s %10s %8s\n" \
         "───────────────" "──────────" "──────────" "──────────" "──────────" "────────"
 
@@ -708,7 +701,7 @@ pve_storage_menu() {
     done
 
     echo ""
-    echo -e "${GREEN}Druk op Enter om terug te gaan naar het menu...${NC}"
+    echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
     read -r
 }
 
@@ -716,27 +709,27 @@ pve_storage_menu() {
 main_menu() {
     while true; do
         local choice
-        choice=$(menu_select "Hoofdmenu" "Wat wil je doen?" 22 \
-            "aanmaken"     "VM aanmaken" \
-            "overzicht"    "VM overzicht" \
-            "verwijderen"  "VM verwijderen" \
-            "backup"       "VM backup" \
-            "updaten"      "VMs bijwerken (apt upgrade)" \
-            "gebruikers"   "Gebruikersbeheer (wachtwoord/users)" \
-            "pve-updates"  "PVE host: Systeemupdates" \
-            "pve-opslag"   "PVE host: Opslag-overzicht" \
-            "afsluiten"    "Menu sluiten") || break
+        choice=$(menu_select "$MSG_MENU_MAIN_TITLE" "$MSG_MENU_MAIN_PROMPT" 22 \
+            "$MSG_MENU_MAIN_CREATE_KEY"       "$MSG_MENU_MAIN_CREATE" \
+            "$MSG_MENU_MAIN_LIST_KEY"         "$MSG_MENU_MAIN_LIST" \
+            "$MSG_MENU_MAIN_DELETE_KEY"       "$MSG_MENU_MAIN_DELETE" \
+            "$MSG_MENU_MAIN_BACKUP_KEY"       "$MSG_MENU_MAIN_BACKUP" \
+            "$MSG_MENU_MAIN_UPDATE_KEY"       "$MSG_MENU_MAIN_UPDATE" \
+            "$MSG_MENU_MAIN_USERS_KEY"        "$MSG_MENU_MAIN_USERS" \
+            "$MSG_MENU_MAIN_PVE_UPDATES_KEY"  "$MSG_MENU_MAIN_PVE_UPDATES" \
+            "$MSG_MENU_MAIN_PVE_STORAGE_KEY"  "$MSG_MENU_MAIN_PVE_STORAGE" \
+            "$MSG_MENU_MAIN_EXIT_KEY"         "$MSG_MENU_MAIN_EXIT") || break
 
         case "$choice" in
-            aanmaken)     create_vm_flow ;;
-            overzicht)    show_vm_list ;;
-            verwijderen)  delete_vm_menu ;;
-            backup)       backup_vm_menu ;;
-            updaten)      update_vms_menu ;;
-            gebruikers)   manage_users_menu ;;
-            pve-updates)  pve_update_menu ;;
-            pve-opslag)   pve_storage_menu ;;
-            afsluiten)    break ;;
+            "$MSG_MENU_MAIN_CREATE_KEY")       create_vm_flow ;;
+            "$MSG_MENU_MAIN_LIST_KEY")         show_vm_list ;;
+            "$MSG_MENU_MAIN_DELETE_KEY")       delete_vm_menu ;;
+            "$MSG_MENU_MAIN_BACKUP_KEY")       backup_vm_menu ;;
+            "$MSG_MENU_MAIN_UPDATE_KEY")       update_vms_menu ;;
+            "$MSG_MENU_MAIN_USERS_KEY")        manage_users_menu ;;
+            "$MSG_MENU_MAIN_PVE_UPDATES_KEY")  pve_update_menu ;;
+            "$MSG_MENU_MAIN_PVE_STORAGE_KEY")  pve_storage_menu ;;
+            "$MSG_MENU_MAIN_EXIT_KEY")         break ;;
         esac
     done
 }
@@ -747,5 +740,5 @@ main_menu
 
 clear
 show_banner
-echo -e "${GREEN}Tot ziens!${NC}"
+echo -e "${GREEN}$MSG_COMMON_GOODBYE${NC}"
 echo ""

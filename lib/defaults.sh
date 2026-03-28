@@ -51,14 +51,14 @@ register_type() {
 
 register_type "base" \
     "Base Server" \
-    "Kale Debian server met basis tools" \
+    "$MSG_DEFAULTS_BASE_DESC" \
     2 2048 "" \
     "base-cloud-config.yaml" \
     "" ""
 
 register_type "docker" \
     "Docker Server" \
-    "Docker + Compose + Portainer" \
+    "$MSG_DEFAULTS_DOCKER_DESC" \
     4 4096 "50G" \
     "docker-cloud-config.yaml" \
     "Portainer: https://<IP>:9443" \
@@ -66,7 +66,7 @@ register_type "docker" \
 
 register_type "webserver" \
     "Webserver" \
-    "Nginx + Certbot + UFW + Fail2ban" \
+    "$MSG_DEFAULTS_WEBSERVER_DESC" \
     2 2048 "20G" \
     "webserver-cloud-config.yaml" \
     "Nginx: http://<IP>" \
@@ -74,7 +74,7 @@ register_type "webserver" \
 
 register_type "homelab" \
     "Homelab Server" \
-    "Docker + NFS + Portainer + homelab tools" \
+    "$MSG_DEFAULTS_HOMELAB_DESC" \
     4 4096 "50G" \
     "homelab-cloud-config.yaml" \
     "Portainer: https://<IP>:9443" \
@@ -82,7 +82,7 @@ register_type "homelab" \
 
 register_type "supabase" \
     "Supabase" \
-    "Self-hosted Supabase (PostgreSQL + Auth + API)" \
+    "$MSG_DEFAULTS_SUPABASE_DESC" \
     4 8192 "50G" \
     "supabase-cloud-config.yaml" \
     "Studio: http://<IP>:3000 | API: http://<IP>:8000" \
@@ -90,7 +90,7 @@ register_type "supabase" \
 
 register_type "coolify" \
     "Coolify" \
-    "Self-hosted PaaS (Heroku/Vercel alternatief)" \
+    "$MSG_DEFAULTS_COOLIFY_DESC" \
     2 2048 "30G" \
     "coolify-cloud-config.yaml" \
     "Dashboard: http://<IP>:8000" \
@@ -98,7 +98,7 @@ register_type "coolify" \
 
 register_type "minio" \
     "MinIO" \
-    "S3-compatible object storage" \
+    "$MSG_DEFAULTS_MINIO_DESC" \
     4 4096 "50G" \
     "minio-cloud-config.yaml" \
     "Console: http://<IP>:9001 | API: http://<IP>:9000" \
@@ -106,7 +106,7 @@ register_type "minio" \
 
 register_type "appwrite" \
     "Appwrite" \
-    "Multi-project BaaS platform" \
+    "$MSG_DEFAULTS_APPWRITE_DESC" \
     4 4096 "50G" \
     "appwrite-cloud-config.yaml" \
     "Console: http://<IP>" \
