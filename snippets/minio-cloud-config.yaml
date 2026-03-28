@@ -100,16 +100,23 @@ runcmd:
   # Docker prune cronjob
   - echo "0 3 * * 0 root docker image prune -af 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
 
-  # Credentials opslaan in motd
+  # Credentials veilig opslaan (alleen root kan lezen)
   - |
     IP=$(hostname -I | awk '{print $1}')
     MINIO_PASS=$(grep '^MINIO_ROOT_PASSWORD=' /opt/minio/config/.env | cut -d= -f2)
+    cat > /root/.credentials << CEOF
+    === MinIO ===
+    Console:    http://${IP}:9001
+    API:        http://${IP}:9000
+    Login:      admin / ${MINIO_PASS}
+    Config:     /opt/minio/config/.env
+    CEOF
+    chmod 600 /root/.credentials
     echo "" >> /etc/motd
     echo "=== MinIO ===" >> /etc/motd
     echo "Console:    http://${IP}:9001" >> /etc/motd
     echo "API:        http://${IP}:9000" >> /etc/motd
-    echo "Login:      admin / ${MINIO_PASS}" >> /etc/motd
-    echo "Config:     /opt/minio/config/.env" >> /etc/motd
+    echo "Credentials: cat /root/.credentials" >> /etc/motd
     echo "" >> /etc/motd
 
 final_message: "MinIO setup voltooid na $UPTIME seconden - Console op http://<IP>:9001, API op http://<IP>:9000"

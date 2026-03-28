@@ -157,16 +157,23 @@ runcmd:
   # Docker prune cronjob (skip supabase images)
   - echo "0 3 * * 0 root docker image prune -af --filter 'label!=com.supabase' 2>&1 | logger -t docker-prune" > /etc/cron.d/docker-prune
 
-  # Bewaar credentials op leesbare plek
+  # Bewaar credentials veilig (alleen root kan lezen)
   - |
     IP=$(hostname -I | awk '{print $1}')
     DASH_PASS=$(grep '^DASHBOARD_PASSWORD=' /opt/supabase/docker/.env | cut -d= -f2)
+    cat > /root/.credentials << CEOF
+    === Supabase ===
+    Studio:     http://${IP}:3000
+    API:        http://${IP}:8000
+    Dashboard:  admin / ${DASH_PASS}
+    Config:     /opt/supabase/docker/.env
+    CEOF
+    chmod 600 /root/.credentials
     echo "" >> /etc/motd
     echo "=== Supabase ===" >> /etc/motd
     echo "Studio:     http://${IP}:3000" >> /etc/motd
     echo "API:        http://${IP}:8000" >> /etc/motd
-    echo "Dashboard:  admin / ${DASH_PASS}" >> /etc/motd
-    echo "Config:     /opt/supabase/docker/.env" >> /etc/motd
+    echo "Credentials: cat /root/.credentials" >> /etc/motd
     echo "" >> /etc/motd
 
 final_message: "Supabase setup voltooid na $UPTIME seconden - Studio op http://<IP>:3000, API op http://<IP>:8000"

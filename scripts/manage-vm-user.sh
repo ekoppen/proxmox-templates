@@ -146,8 +146,10 @@ do_passwd() {
         log_error "Gebruiker '$user' bestaat niet op VM $vmid ($name)"
     fi
 
-    # Wachtwoord instellen via chpasswd
-    if qm guest exec "$vmid" -- bash -c "echo '${user}:${password}' | chpasswd" 2>/dev/null; then
+    # Wachtwoord instellen via chpasswd (input via base64 om injectie te voorkomen)
+    local encoded
+    encoded=$(printf '%s:%s' "$user" "$password" | base64)
+    if qm guest exec "$vmid" -- bash -c "echo '$encoded' | base64 -d | chpasswd" 2>/dev/null; then
         log_success "[$vmid] $name - wachtwoord ingesteld voor '$user'"
     else
         log_error "[$vmid] $name - wachtwoord instellen mislukt"
@@ -167,16 +169,22 @@ do_add_user() {
         log_error "Gebruiker '$user' bestaat al op VM $vmid ($name)"
     fi
 
+    # Valideer gebruikersnaam (alleen letters, cijfers, underscore, hyphen)
+    if ! [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+        log_error "Ongeldige gebruikersnaam: '$user' (alleen a-z, 0-9, _, -)"
+    fi
+
     # Gebruiker aanmaken
-    local useradd_cmd="useradd -m -s '$shell' '$user'"
-    if ! qm guest exec "$vmid" -- bash -c "$useradd_cmd" 2>/dev/null; then
+    if ! qm guest exec "$vmid" -- useradd -m -s "$shell" "$user" 2>/dev/null; then
         log_error "[$vmid] $name - gebruiker aanmaken mislukt"
     fi
     log_success "[$vmid] $name - gebruiker '$user' aangemaakt"
 
     # Wachtwoord instellen (als opgegeven)
     if [[ -n "$password" ]]; then
-        if qm guest exec "$vmid" -- bash -c "echo '${user}:${password}' | chpasswd" 2>/dev/null; then
+        local encoded
+        encoded=$(printf '%s:%s' "$user" "$password" | base64)
+        if qm guest exec "$vmid" -- bash -c "echo '$encoded' | base64 -d | chpasswd" 2>/dev/null; then
             log_success "[$vmid] $name - wachtwoord ingesteld"
         else
             log_warn "[$vmid] $name - wachtwoord instellen mislukt"
@@ -185,16 +193,18 @@ do_add_user() {
 
     # Sudo rechten
     if [[ "$add_sudo" == true ]]; then
-        if qm guest exec "$vmid" -- bash -c "usermod -aG sudo '$user' && echo '${user} ALL=(ALL) NOPASSWD:ALL' > '/etc/sudoers.d/${user}' && chmod 440 '/etc/sudoers.d/${user}'" 2>/dev/null; then
+        if qm guest exec "$vmid" -- bash -c "usermod -aG sudo $user && echo '$user ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/$user && chmod 440 /etc/sudoers.d/$user" 2>/dev/null; then
             log_success "[$vmid] $name - sudo rechten toegekend"
         else
             log_warn "[$vmid] $name - sudo rechten toekennen mislukt"
         fi
     fi
 
-    # SSH key
+    # SSH key (via base64 om speciale tekens veilig door te geven)
     if [[ -n "$ssh_key" ]]; then
-        local ssh_cmd="mkdir -p /home/${user}/.ssh && echo '${ssh_key}' >> /home/${user}/.ssh/authorized_keys && chmod 700 /home/${user}/.ssh && chmod 600 /home/${user}/.ssh/authorized_keys && chown -R ${user}:${user} /home/${user}/.ssh"
+        local key_encoded
+        key_encoded=$(printf '%s' "$ssh_key" | base64)
+        local ssh_cmd="mkdir -p /home/$user/.ssh && echo '$key_encoded' | base64 -d >> /home/$user/.ssh/authorized_keys && chmod 700 /home/$user/.ssh && chmod 600 /home/$user/.ssh/authorized_keys && chown -R $user:$user /home/$user/.ssh"
         if qm guest exec "$vmid" -- bash -c "$ssh_cmd" 2>/dev/null; then
             log_success "[$vmid] $name - SSH key toegevoegd"
         else
@@ -228,8 +238,10 @@ do_add_ssh_key() {
         home_dir="/home/${user}"
     fi
 
-    # SSH key toevoegen aan authorized_keys
-    local ssh_cmd="mkdir -p ${home_dir}/.ssh && echo '${ssh_key}' >> ${home_dir}/.ssh/authorized_keys && chmod 700 ${home_dir}/.ssh && chmod 600 ${home_dir}/.ssh/authorized_keys && chown -R ${user}:${user} ${home_dir}/.ssh"
+    # SSH key toevoegen aan authorized_keys (via base64 om speciale tekens veilig door te geven)
+    local key_encoded
+    key_encoded=$(printf '%s' "$ssh_key" | base64)
+    local ssh_cmd="mkdir -p ${home_dir}/.ssh && echo '$key_encoded' | base64 -d >> ${home_dir}/.ssh/authorized_keys && chmod 700 ${home_dir}/.ssh && chmod 600 ${home_dir}/.ssh/authorized_keys && chown -R ${user}:${user} ${home_dir}/.ssh"
     if qm guest exec "$vmid" -- bash -c "$ssh_cmd" 2>/dev/null; then
         log_success "[$vmid] $name - SSH key toegevoegd voor '$user'"
     else
