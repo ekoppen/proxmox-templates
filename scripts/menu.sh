@@ -680,7 +680,7 @@ pve_storage_menu() {
     printf "%-15s %-10s %10s %10s %10s %8s\n" \
         "───────────────" "──────────" "──────────" "──────────" "──────────" "────────"
 
-    pvesm status 2>/dev/null | tail -n +2 | while read -r NAME TYPE STATUS TOTAL USED AVAILABLE PERCENTAGE; do
+    pvesm status 2>/dev/null | tail -n +2 | while read -r NAME TYPE _STATUS TOTAL USED AVAILABLE _PERCENTAGE; do
         [[ -z "$NAME" ]] && continue
 
         if [[ "$TOTAL" =~ ^[0-9]+$ ]] && [[ "$TOTAL" -gt 0 ]]; then

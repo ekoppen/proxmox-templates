@@ -95,7 +95,7 @@ do_storage() {
         "───────────────" "──────────" "──────────" "──────────" "──────────" "────────"
 
     # Parse pvesm status (skip header line)
-    pvesm status 2>/dev/null | tail -n +2 | while read -r NAME TYPE STATUS TOTAL USED AVAILABLE PERCENTAGE; do
+    pvesm status 2>/dev/null | tail -n +2 | while read -r NAME TYPE _STATUS TOTAL USED AVAILABLE _PERCENTAGE; do
         # Skip als er geen data is
         [[ -z "$NAME" ]] && continue
 

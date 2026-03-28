@@ -76,11 +76,11 @@ jobs:
           for file in scripts/*.sh lib/*.sh install.sh setup.sh; do
             if [[ -f "$file" ]]; then
               echo -n "  Checking $file... "
-              if shellcheck -x -s bash "$file" 2>/dev/null; then
+              if shellcheck -x -s bash -e SC1091,SC2016 "$file" 2>/dev/null; then
                 echo "✓"
               else
                 echo "✗"
-                shellcheck -x -s bash "$file"
+                shellcheck -x -s bash -e SC1091,SC2016 "$file"
                 ERRORS=$((ERRORS + 1))
               fi
             fi

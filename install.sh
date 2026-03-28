@@ -92,10 +92,10 @@ echo -e "${GREEN}  Installatie voltooid!${NC}"
 echo -e "${GREEN}════════════════════════════════════════${NC}"
 echo ""
 echo "Geïnstalleerde snippets:"
-ls -1 "$SNIPPET_DIR/"*.yaml 2>/dev/null | while read -r f; do echo "  $(basename "$f")"; done
+for f in "$SNIPPET_DIR/"*.yaml; do [[ -f "$f" ]] && echo "  $(basename "$f")"; done
 echo ""
 echo "Geïnstalleerde scripts:"
-ls -1 "$INSTALL_DIR/"*.sh 2>/dev/null | while read -r f; do echo "  $(basename "$f")"; done
+for f in "$INSTALL_DIR/"*.sh; do [[ -f "$f" ]] && echo "  $(basename "$f")"; done
 echo ""
 echo "Gebruik (na 'source ~/.bashrc' of opnieuw inloggen):"
 echo ""
