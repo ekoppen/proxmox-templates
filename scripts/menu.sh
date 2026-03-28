@@ -723,7 +723,6 @@ main_menu() {
             "backup"       "VM backup" \
             "updaten"      "VMs bijwerken (apt upgrade)" \
             "gebruikers"   "Gebruikersbeheer (wachtwoord/users)" \
-            "separator"    "────────────────────────────────" \
             "pve-updates"  "PVE host: Systeemupdates" \
             "pve-opslag"   "PVE host: Opslag-overzicht" \
             "afsluiten"    "Menu sluiten") || break
@@ -735,7 +734,6 @@ main_menu() {
             backup)       backup_vm_menu ;;
             updaten)      update_vms_menu ;;
             gebruikers)   manage_users_menu ;;
-            separator)    ;; # visuele scheiding, doe niets
             pve-updates)  pve_update_menu ;;
             pve-opslag)   pve_storage_menu ;;
             afsluiten)    break ;;
