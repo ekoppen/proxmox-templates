@@ -271,68 +271,30 @@ echo -e "${BOLD}${MSG_SETUP_STEP3_TPL_TITLE:-Step 3/4: Proxmox Template}${NC}"
 echo -e "─────────────────────────────────────────"
 echo ""
 
-# Probeer beschikbare templates te vinden als we op Proxmox draaien
+# Toon beschikbare templates als we op Proxmox draaien
+TPL_FOUND=false
 if command -v qm &>/dev/null; then
-    echo "  $MSG_SETUP_AVAILABLE_TEMPLATES"
-    qm list 2>/dev/null | tail -n +2 | while read -r line; do
+    TPL_LIST=$(qm list 2>/dev/null | tail -n +2 | while read -r line; do
         VMID=$(echo "$line" | awk '{print $1}')
         IS_TPL=$(qm config "$VMID" 2>/dev/null | grep "^template:" | awk '{print $2}')
         if [[ "$IS_TPL" == "1" ]]; then
             NAME=$(qm config "$VMID" 2>/dev/null | grep "^name:" | awk '{print $2}')
             echo "    [$VMID] $NAME"
         fi
-    done
-    echo ""
+    done)
+
+    if [[ -n "$TPL_LIST" ]]; then
+        echo "  $MSG_SETUP_AVAILABLE_TEMPLATES"
+        echo "$TPL_LIST"
+        echo ""
+        echo -e "  ${GREEN}✓ $MSG_SETUP_TPL_READY${NC}"
+        TPL_FOUND=true
+    fi
 fi
 
-read -rp "  $MSG_SETUP_TEMPLATE_PROMPT" TEMPLATE_ID
-TEMPLATE_ID=${TEMPLATE_ID:-9000}
-sed -i "s|^TEMPLATE_ID=.*|TEMPLATE_ID=$TEMPLATE_ID|" "$SCRIPT_DIR/scripts/create-vm.sh"
-echo -e "  ${GREEN}✓ $MSG_SETUP_TEMPLATE_SET $TEMPLATE_ID${NC}"
-
-# Check of het gekozen template bestaat
-if command -v qm &>/dev/null; then
-    if qm status "$TEMPLATE_ID" &>/dev/null 2>&1; then
-        echo -e "  ${GREEN}✓ $MSG_SETUP_TEMPLATE_FOUND${NC}"
-    else
-        echo ""
-        echo -e "  ${YELLOW}$MSG_SETUP_TEMPLATE_NOT_FOUND${NC}"
-        echo ""
-        echo -e "  ${GREEN}[A]${NC} $MSG_SETUP_TEMPLATE_AUTO"
-        echo -e "  ${YELLOW}[D]${NC} $MSG_SETUP_TEMPLATE_CONTINUE"
-        echo ""
-        read -rp "  $MSG_SETUP_CHOICE [A]: " TPL_CHOICE
-        TPL_CHOICE=${TPL_CHOICE:-A}
-
-        case $TPL_CHOICE in
-            [Aa])
-                # Zoek create-template.sh
-                CREATE_TPL=""
-                if [[ -f "$SCRIPT_DIR/scripts/create-template.sh" ]]; then
-                    CREATE_TPL="$SCRIPT_DIR/scripts/create-template.sh"
-                elif [[ -f "/root/scripts/create-template.sh" ]]; then
-                    CREATE_TPL="/root/scripts/create-template.sh"
-                fi
-
-                if [[ -n "$CREATE_TPL" ]]; then
-                    echo ""
-                    if bash "$CREATE_TPL" --id "$TEMPLATE_ID" --storage "${STORAGE:-local-lvm}"; then
-                        echo -e "  ${GREEN}✓ $MSG_SETUP_TEMPLATE_CREATED${NC}"
-                    else
-                        echo -e "  ${RED}$MSG_SETUP_TEMPLATE_FAILED${NC}"
-                        echo -e "  ${YELLOW}bash scripts/create-template.sh --id $TEMPLATE_ID${NC}"
-                    fi
-                else
-                    echo -e "  ${RED}$MSG_SETUP_TEMPLATE_SCRIPT_NOT_FOUND${NC}"
-                    echo -e "  ${YELLOW}$MSG_SETUP_TEMPLATE_INSTALL_FIRST${NC}"
-                fi
-                ;;
-            *)
-                echo -e "  ${YELLOW}$MSG_SETUP_TEMPLATE_CONTINUE_WITHOUT${NC}"
-                echo -e "  ${YELLOW}bash scripts/create-template.sh --id $TEMPLATE_ID${NC}"
-                ;;
-        esac
-    fi
+if [[ "$TPL_FOUND" != true ]]; then
+    echo -e "  ${YELLOW}$MSG_SETUP_TPL_NONE_FOUND${NC}"
+    echo -e "  $MSG_SETUP_TPL_CREATE_HINT"
 fi
 
 echo ""
@@ -371,7 +333,6 @@ if [[ -n "$DEPLOY_KEY" ]]; then
 else
     echo -e "    Deploy Key:  ${YELLOW}$MSG_SETUP_DEPLOY_SUMMARY_NONE${NC}"
 fi
-echo "    Template ID: $TEMPLATE_ID"
 echo "    Storage:     $STORAGE"
 echo ""
 echo "  $MSG_SETUP_NEXT_STEP"
