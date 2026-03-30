@@ -713,11 +713,48 @@ pve_storage_menu() {
 }
 
 # ── Hoofdmenu ─────────────────────────────────
+# ── Template aanmaken vanuit menu ────────────
+create_template_menu() {
+    # Zoek create-template.sh
+    local tpl_script=""
+    if [[ -f "$SCRIPT_DIR/create-template.sh" ]]; then
+        tpl_script="$SCRIPT_DIR/create-template.sh"
+    elif [[ -f "/root/scripts/create-template.sh" ]]; then
+        tpl_script="/root/scripts/create-template.sh"
+    fi
+
+    if [[ -z "$tpl_script" ]]; then
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_TPL_SCRIPT_NOT_FOUND"
+        return 1
+    fi
+
+    # Debian versiekeuze
+    local deb_version
+    deb_version=$(menu_select "$MSG_MENU_TPL_VERSION_TITLE" \
+        "$MSG_MENU_TPL_VERSION_PROMPT" 12 \
+        "12" "Debian 12 (Bookworm) - Stable" \
+        "13" "Debian 13 (Trixie)") || return 1
+
+    # Template ID invoer
+    local tpl_id
+    tpl_id=$(input_box "$MSG_MENU_TPL_ID_TITLE" "$MSG_MENU_TPL_ID_PROMPT" "9000") || return 1
+
+    clear
+    show_banner
+    echo -e "${BLUE}$MSG_MENU_TPL_CREATING${NC}"
+    echo ""
+    bash "$tpl_script" --id "$tpl_id" --version "$deb_version"
+    echo ""
+    echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
+    read -r
+}
+
 main_menu() {
     while true; do
         local choice
-        choice=$(menu_select "$MSG_MENU_MAIN_TITLE" "$MSG_MENU_MAIN_PROMPT" 22 \
+        choice=$(menu_select "$MSG_MENU_MAIN_TITLE" "$MSG_MENU_MAIN_PROMPT" 24 \
             "$MSG_MENU_MAIN_CREATE_KEY"       "$MSG_MENU_MAIN_CREATE" \
+            "$MSG_MENU_MAIN_TEMPLATE_KEY"     "$MSG_MENU_MAIN_TEMPLATE" \
             "$MSG_MENU_MAIN_LIST_KEY"         "$MSG_MENU_MAIN_LIST" \
             "$MSG_MENU_MAIN_DELETE_KEY"       "$MSG_MENU_MAIN_DELETE" \
             "$MSG_MENU_MAIN_BACKUP_KEY"       "$MSG_MENU_MAIN_BACKUP" \
@@ -729,6 +766,7 @@ main_menu() {
 
         case "$choice" in
             "$MSG_MENU_MAIN_CREATE_KEY")       create_vm_flow ;;
+            "$MSG_MENU_MAIN_TEMPLATE_KEY")     create_template_menu ;;
             "$MSG_MENU_MAIN_LIST_KEY")         show_vm_list ;;
             "$MSG_MENU_MAIN_DELETE_KEY")       delete_vm_menu ;;
             "$MSG_MENU_MAIN_BACKUP_KEY")       backup_vm_menu ;;
