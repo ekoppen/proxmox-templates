@@ -222,8 +222,52 @@ fi
 
 echo ""
 
-# ── Stap 2: Template ID ──────────────────────
-echo -e "${BOLD}${MSG_SETUP_STEP2_TITLE}${NC}"
+# ── Stap 2: Deploy Key (optioneel) ──────────
+echo -e "${BOLD}${MSG_SETUP_STEP2_DEPLOY_TITLE:-Step 2/4: Deploy Key (optional)}${NC}"
+echo -e "─────────────────────────────────────────"
+echo ""
+echo "  $MSG_SETUP_DEPLOY_DESC"
+echo ""
+echo -e "  ${GREEN}[P]${NC} $MSG_SETUP_DEPLOY_PASTE"
+echo -e "  ${YELLOW}[S]${NC} $MSG_SETUP_DEPLOY_SKIP"
+echo ""
+read -rp "  $MSG_SETUP_CHOICE [S]: " DEPLOY_CHOICE
+DEPLOY_CHOICE=${DEPLOY_CHOICE:-S}
+
+DEPLOY_KEY=""
+case $DEPLOY_CHOICE in
+    [Pp])
+        echo ""
+        echo "  $MSG_SETUP_DEPLOY_PASTE_PROMPT"
+        echo "  $MSG_SETUP_PASTE_HINT"
+        echo ""
+        read -r DEPLOY_KEY
+        if [[ "$DEPLOY_KEY" =~ ^ssh-(ed25519|rsa|ecdsa)|^ecdsa-sha2 ]]; then
+            # Voeg deploy key toe aan alle snippets
+            for file in "$SCRIPT_DIR"/snippets/*.yaml; do
+                if [[ ${#VALID_KEYS[@]} -gt 0 ]]; then
+                    # Voeg toe na de eerste SSH key
+                    sed -i "/$(echo "${VALID_KEYS[0]}" | head -c 40)/a\\      - $DEPLOY_KEY" "$file"
+                else
+                    # Vervang placeholder als er nog geen keys zijn
+                    sed -i "s|YOUR_SSH_PUBLIC_KEY_HERE|$DEPLOY_KEY|g" "$file"
+                fi
+            done
+            echo -e "  ${GREEN}✓ $MSG_SETUP_DEPLOY_SET${NC}"
+        else
+            echo -e "  ${RED}$MSG_SETUP_KEY_INVALID_SKIP ${DEPLOY_KEY:0:30}...${NC}"
+            DEPLOY_KEY=""
+        fi
+        ;;
+    *)
+        echo -e "  ${YELLOW}$MSG_SETUP_SKIPPED${NC}"
+        ;;
+esac
+
+echo ""
+
+# ── Stap 3: Template ID ──────────────────────
+echo -e "${BOLD}${MSG_SETUP_STEP3_TPL_TITLE:-Step 3/4: Proxmox Template}${NC}"
 echo -e "─────────────────────────────────────────"
 echo ""
 
@@ -293,8 +337,8 @@ fi
 
 echo ""
 
-# ── Stap 3: Storage ──────────────────────────
-echo -e "${BOLD}${MSG_SETUP_STEP3_TITLE}${NC}"
+# ── Stap 4: Storage ──────────────────────────
+echo -e "${BOLD}${MSG_SETUP_STEP4_TITLE:-Step 4/4: Storage}${NC}"
 echo -e "─────────────────────────────────────────"
 echo ""
 
@@ -321,6 +365,11 @@ if [[ ${#SSH_KEYS[@]} -gt 0 ]]; then
     echo -e "    SSH Keys:    ${GREEN}${#VALID_KEYS[@]} $MSG_SETUP_SSH_KEYS_SET${NC}"
 else
     echo -e "    SSH Keys:    ${YELLOW}$MSG_SETUP_SSH_KEYS_NOT_SET${NC}"
+fi
+if [[ -n "$DEPLOY_KEY" ]]; then
+    echo -e "    Deploy Key:  ${GREEN}$MSG_SETUP_DEPLOY_SUMMARY_SET${NC}"
+else
+    echo -e "    Deploy Key:  ${YELLOW}$MSG_SETUP_DEPLOY_SUMMARY_NONE${NC}"
 fi
 echo "    Template ID: $TEMPLATE_ID"
 echo "    Storage:     $STORAGE"
