@@ -287,6 +287,23 @@ if [[ "$START_AFTER" == true ]]; then
         log_success "$MSG_CREATE_VM_HOSTNAME_SET"
     fi
 
+    # Retrieve admin SSH public key from VM
+    if [[ -n "$IP" ]]; then
+        log_info "$MSG_CREATE_VM_RETRIEVING_PUBKEY"
+        PUBKEY=""
+        for _ in $(seq 1 6); do
+            sleep 5
+            PUBKEY=$(qm guest exec "$VM_ID" -- cat /home/admin/.ssh/id_ed25519.pub 2>/dev/null | \
+                     grep -oP 'ssh-ed25519\s+\S+(\s+\S+)?' || true)
+            [[ -n "$PUBKEY" ]] && break
+        done
+        if [[ -n "$PUBKEY" ]]; then
+            log_success "$MSG_CREATE_VM_PUBKEY_RETRIEVED"
+        else
+            log_warn "$MSG_CREATE_VM_PUBKEY_NOT_FOUND"
+        fi
+    fi
+
     # Service health check
     if [[ -n "$IP" && "$USE_REGISTRY" == true ]]; then
         HEALTH_URL=$(get_healthcheck "$VM_TYPE")
@@ -307,6 +324,9 @@ if [[ "$USE_REGISTRY" == true ]]; then
     if [[ -n "$POSTINFO" && -n "$IP" ]]; then
         VM_NOTES="$VM_NOTES\n${POSTINFO//<IP>/$IP}"
     fi
+fi
+if [[ -n "$PUBKEY" ]]; then
+    VM_NOTES="$VM_NOTES\n\nPublic key (admin):\n$PUBKEY"
 fi
 qm set "$VM_ID" --description "$(echo -e "$VM_NOTES")" 2>/dev/null || true
 
@@ -337,5 +357,10 @@ if [[ -n "$IP" ]]; then
         [[ "$VM_TYPE" == "docker" || "$VM_TYPE" == "homelab" ]] && \
             echo -e "  Portainer: ${YELLOW}https://$IP:9443${NC}"
     fi
+fi
+if [[ -n "$PUBKEY" ]]; then
+    echo ""
+    echo -e "  ${BLUE}${MSG_CREATE_VM_PUBKEY_LABEL}${NC}"
+    echo -e "  ${YELLOW}$PUBKEY${NC}"
 fi
 echo ""

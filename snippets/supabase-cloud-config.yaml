@@ -141,6 +141,9 @@ runcmd:
       chmod 600 /root/.ssh/authorized_keys
     fi
 
+  # Generate SSH keypair for admin user
+  - su - admin -c 'ssh-keygen -t ed25519 -f /home/admin/.ssh/id_ed25519 -N "" -q'
+
   # Docker installatie
   - curl -fsSL https://get.docker.com | sh
   - apt-get install -y docker-compose-plugin

@@ -276,6 +276,10 @@ MSG_CREATE_VM_SETTING_HOSTNAME="Hostname instellen op '\$VM_NAME'..."
 MSG_CREATE_VM_HOSTNAME_SET="Hostname ingesteld"
 MSG_CREATE_VM_SUCCESS_HEADER="VM succesvol aangemaakt!"
 MSG_CREATE_VM_ACCESS="Toegang:"
+MSG_CREATE_VM_RETRIEVING_PUBKEY="Admin SSH public key ophalen..."
+MSG_CREATE_VM_PUBKEY_RETRIEVED="Admin SSH public key opgehaald"
+MSG_CREATE_VM_PUBKEY_NOT_FOUND="Kon admin SSH public key niet ophalen (cloud-init is mogelijk nog bezig)"
+MSG_CREATE_VM_PUBKEY_LABEL="Public key (admin):"
 
 # ── CREATE_TPL ──────────────────────────────────
 MSG_CREATE_TPL_TITLE="Proxmox Template Creator"
