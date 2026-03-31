@@ -42,6 +42,13 @@ runcmd:
   - systemctl enable ssh
   - systemctl start ssh
 
+  # Hostname: set from Proxmox VM name via cloud-init metadata
+  - |
+    NEW_HOSTNAME=$(cloud-init query local-hostname 2>/dev/null || true)
+    if [ -n "$NEW_HOSTNAME" ] && [ "$NEW_HOSTNAME" != "localhost" ]; then
+      hostnamectl set-hostname "$NEW_HOSTNAME"
+    fi
+
   # Deploy key → root (configured by setup.sh)
   - |
     DKEY="DEPLOY_SSH_PUBLIC_KEY_HERE"
