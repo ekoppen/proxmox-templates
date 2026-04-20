@@ -120,23 +120,26 @@ check_vm_ready() {
 # Vraag wachtwoord interactief (twee keer, met verificatie)
 ask_password() {
     local pass1 pass2
-    echo -en "${BLUE}[INFO]${NC} $MSG_USER_NEW_PASSWORD"
+    echo -en "${BLUE}[INFO]${NC} $MSG_USER_NEW_PASSWORD" >&2
     read -rs pass1
-    echo ""
-    echo -en "${BLUE}[INFO]${NC} $MSG_USER_REPEAT_PASSWORD"
+    echo "" >&2
+    echo -en "${BLUE}[INFO]${NC} $MSG_USER_REPEAT_PASSWORD" >&2
     read -rs pass2
-    echo ""
+    echo "" >&2
 
     if [[ "$pass1" != "$pass2" ]]; then
-        log_error "$MSG_USER_PASSWORD_MISMATCH"
+        echo -e "${RED}[FOUT]${NC} $MSG_USER_PASSWORD_MISMATCH" >&2
+        return 1
     fi
 
     if [[ -z "$pass1" ]]; then
-        log_error "$MSG_USER_PASSWORD_EMPTY"
+        echo -e "${RED}[FOUT]${NC} $MSG_USER_PASSWORD_EMPTY" >&2
+        return 1
     fi
 
     if [[ ${#pass1} -lt 8 ]]; then
-        log_error "$MSG_USER_PASSWORD_TOO_SHORT"
+        echo -e "${RED}[FOUT]${NC} $MSG_USER_PASSWORD_TOO_SHORT" >&2
+        return 1
     fi
 
     echo "$pass1"

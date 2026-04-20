@@ -227,14 +227,14 @@ delete_vm_menu() {
     [[ -z "$vmid" ]] && return
 
     if ! qm status "$vmid" &>/dev/null 2>&1; then
-        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_DELETE_VM_NOT_FOUND"
+        msg_info "$MSG_COMMON_ERROR" "$(_expand "$MSG_MENU_DELETE_VM_NOT_FOUND")"
         return
     fi
 
     local name
     name=$(qm config "$vmid" 2>/dev/null | grep "^name:" | awk '{print $2}')
 
-    if confirm "$MSG_COMMON_CONFIRM" "$MSG_MENU_DELETE_CONFIRM"; then
+    if confirm "$MSG_COMMON_CONFIRM" "$(_expand "$MSG_MENU_DELETE_CONFIRM")"; then
         clear
         local delete_script
         if [[ -f "$SCRIPT_DIR/delete-vm.sh" ]]; then
@@ -490,7 +490,7 @@ manage_users_menu() {
     [[ -z "$vmid" ]] && return
 
     if ! qm status "$vmid" &>/dev/null 2>&1; then
-        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_USERS_VM_NOT_FOUND"
+        msg_info "$MSG_COMMON_ERROR" "$(_expand "$MSG_MENU_USERS_VM_NOT_FOUND")"
         return
     fi
 
@@ -498,7 +498,7 @@ manage_users_menu() {
     name=$(qm config "$vmid" 2>/dev/null | grep "^name:" | awk '{print $2}')
 
     local action
-    action=$(menu_select "$MSG_MENU_USERS_TITLE" "$MSG_MENU_USERS_PROMPT" 18 \
+    action=$(menu_select "$MSG_MENU_USERS_TITLE" "$(_expand "$MSG_MENU_USERS_PROMPT")" 18 \
         "list"   "$MSG_MENU_USERS_LIST" \
         "passwd" "$MSG_MENU_USERS_PASSWD" \
         "add"    "$MSG_MENU_USERS_ADD" \
@@ -556,7 +556,7 @@ manage_users_menu() {
             local user
             user=$(input_box "$MSG_MENU_USERS_DEL" "$MSG_MENU_USERS_DEL_PROMPT" "") || return
             [[ -z "$user" ]] && return
-            if ! confirm "$MSG_COMMON_CONFIRM" "$MSG_MENU_USERS_DEL_CONFIRM"; then
+            if ! confirm "$MSG_COMMON_CONFIRM" "$(_expand "$MSG_MENU_USERS_DEL_CONFIRM")"; then
                 return
             fi
             cmd_args+=("--del-user" "$user")
@@ -565,7 +565,7 @@ manage_users_menu() {
 
     clear
     show_banner
-    echo -e "${BLUE}$MSG_MENU_USERS_MANAGING${NC}"
+    echo -e "${BLUE}$(_expand "$MSG_MENU_USERS_MANAGING")${NC}"
     echo ""
 
     bash "$user_script" "${cmd_args[@]}"
