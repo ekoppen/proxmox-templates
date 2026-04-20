@@ -51,9 +51,22 @@ log_success() { echo -e "${GREEN}[OK]${NC}   $(_expand "$1")"; }
 log_warn()    { echo -e "${YELLOW}[WARN]${NC} $(_expand "$1")"; }
 log_error()   { echo -e "${RED}[FOUT]${NC} $(_expand "$1")"; exit 1; }
 
+# ── SSH ControlMaster (één keer wachtwoord) ──
+SSH_CONTROL_DIR="$HOME/.pve-remote/sockets"
+SSH_CONTROL_PATH="$SSH_CONTROL_DIR/%r@%h:%p"
+SSH_OPTS=(-o ConnectTimeout=5 -o ControlMaster=auto -o "ControlPath=$SSH_CONTROL_PATH" -o ControlPersist=120)
+
+ssh_run() { ssh "${SSH_OPTS[@]}" "$@"; }
+scp_run() { scp "${SSH_OPTS[@]}" "$@"; }
+
+cleanup_ssh() {
+    ssh -o "ControlPath=$SSH_CONTROL_PATH" -O exit "$1" 2>/dev/null || true
+}
+
 # ── Host-bestand ─────────────────────────────
 ensure_hosts_dir() {
     [[ -d "$HOSTS_DIR" ]] || mkdir -p "$HOSTS_DIR"
+    [[ -d "$SSH_CONTROL_DIR" ]] || mkdir -p "$SSH_CONTROL_DIR"
     [[ -f "$HOSTS_FILE" ]] || touch "$HOSTS_FILE"
 }
 
@@ -134,17 +147,17 @@ do_install() {
     local ip=$1 user=$2
 
     log_info "$MSG_REMOTE_COPYING"
-    if ! scp -r -q "$SCRIPT_DIR/" "${user}@${ip}:/tmp/pve-toolkit/" 2>/dev/null; then
+    if ! scp_run -r -q "$SCRIPT_DIR/" "${user}@${ip}:/tmp/pve-toolkit/"; then
         log_error "$MSG_REMOTE_COPY_FAILED"
     fi
 
     log_info "$MSG_REMOTE_RUNNING_INSTALL"
-    if ! ssh "${user}@${ip}" "bash /tmp/pve-toolkit/install.sh"; then
+    if ! ssh_run "${user}@${ip}" "bash /tmp/pve-toolkit/install.sh"; then
         log_error "$MSG_REMOTE_INSTALL_FAILED"
     fi
 
     log_info "$MSG_REMOTE_CLEANING"
-    ssh "${user}@${ip}" "rm -rf /tmp/pve-toolkit" 2>/dev/null || true
+    ssh_run "${user}@${ip}" "rm -rf /tmp/pve-toolkit" 2>/dev/null || true
 
     log_success "$MSG_REMOTE_INSTALL_OK"
 }
@@ -156,9 +169,14 @@ do_connect() {
     local ip
     ip=$(resolve_host "$host") || log_error "$MSG_REMOTE_HOST_NOT_FOUND"
 
-    # SSH testen
+    ensure_hosts_dir
+
+    # Opruimen bij afsluiten
+    trap "cleanup_ssh ${user}@${ip}" EXIT
+
+    # SSH testen (eerste verbinding, opent ControlMaster)
     log_info "$MSG_REMOTE_TESTING_SSH"
-    if ! ssh -o ConnectTimeout=5 -o BatchMode=yes "${user}@${ip}" "true" 2>/dev/null; then
+    if ! ssh_run "${user}@${ip}" "true"; then
         log_error "$MSG_REMOTE_SSH_FAILED"
     fi
     log_success "$MSG_REMOTE_SSH_OK"
@@ -169,9 +187,9 @@ do_connect() {
         return
     fi
 
-    # Toolkit check
+    # Toolkit check (hergebruikt bestaande verbinding, geen wachtwoord meer nodig)
     log_info "$MSG_REMOTE_CHECKING_TOOLKIT"
-    if ! ssh "${user}@${ip}" "command -v pve-menu" &>/dev/null; then
+    if ! ssh_run "${user}@${ip}" "command -v pve-menu" &>/dev/null; then
         log_warn "$MSG_REMOTE_TOOLKIT_NOT_FOUND"
         echo -en "${BLUE}[INFO]${NC} $(_expand "$MSG_REMOTE_TOOLKIT_INSTALL_PROMPT")"
         read -r answer
@@ -182,10 +200,10 @@ do_connect() {
         fi
     fi
 
-    # Menu starten
+    # Menu starten (hergebruikt bestaande verbinding)
     log_info "$MSG_REMOTE_STARTING"
     echo ""
-    ssh -t "${user}@${ip}" "pve-menu"
+    ssh_run -t "${user}@${ip}" "pve-menu"
 }
 
 # ── Help ─────────────────────────────────────
