@@ -29,6 +29,7 @@ fi
 # ── Libraries laden ───────────────────────────
 source "$LIB_DIR/common.sh"
 source "$LIB_DIR/defaults.sh"
+source "$LIB_DIR/apps.sh"
 
 # ── Whiptail check ────────────────────────────
 check_whiptail
@@ -885,12 +886,94 @@ create_template_menu() {
     read -r
 }
 
+# ── App installatie Flow ─────────────────────
+install_app_flow() {
+    # Stap 1: app kiezen
+    local menu_items=()
+    for key in "${APP_ORDER[@]}"; do
+        menu_items+=("$key" "${APP_LABELS[$key]} - ${APP_DESC[$key]}")
+    done
+    local app
+    app=$(menu_select "$MSG_MENU_INSTALL_APP_TITLE" "$MSG_MENU_INSTALL_APP_SELECT_PROMPT" 14 "${menu_items[@]}") || return
+
+    # Stap 2: doel kiezen
+    local target
+    target=$(menu_select "$MSG_MENU_INSTALL_TARGET_TITLE" "$MSG_MENU_INSTALL_TARGET_PROMPT" 12 \
+        "$MSG_MENU_INSTALL_TARGET_NEW_KEY"      "$MSG_MENU_INSTALL_TARGET_NEW" \
+        "$MSG_MENU_INSTALL_TARGET_EXISTING_KEY" "$MSG_MENU_INSTALL_TARGET_EXISTING") || return
+
+    local -a args=("$app")
+    if [[ "$target" == "$MSG_MENU_INSTALL_TARGET_EXISTING_KEY" ]]; then
+        local ctid
+        ctid=$(input_box "$MSG_MENU_INSTALL_CTID_TITLE" "$MSG_MENU_INSTALL_CTID_PROMPT" "") || return
+        [[ -z "$ctid" ]] && return
+        args+=(--ctid "$ctid")
+    else
+        local name
+        name=$(input_box "$MSG_MENU_INSTALL_APP_TITLE" "$MSG_MENU_INSTALL_NAME_PROMPT" "$app") || return
+        [[ -n "$name" ]] && args+=(--name "$name")
+        args+=(--create)
+    fi
+
+    # Stap 3: per-app prompts (VAR|label|default|required)
+    local line var label def req rest val
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        var="${line%%|*}"; rest="${line#*|}"
+        label="${rest%%|*}"; rest="${rest#*|}"
+        def="${rest%%|*}"; req="${rest#*|}"
+        [[ "$def" == "." ]] && def=""
+        while true; do
+            val=$(input_box "$MSG_MENU_INSTALL_APP_TITLE" "$label" "$def") || return
+            if [[ -z "$val" && "$req" == "true" ]]; then
+                msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_INSTALL_REQUIRED"
+                continue
+            fi
+            break
+        done
+        [[ -n "$val" ]] && args+=(--set "$var=$val")
+    done <<< "${APP_PROMPT[$app]:-}"
+
+    # Stap 4: bevestigen
+    local target_label="$MSG_MENU_INSTALL_TARGET_NEW"
+    [[ "$target" == "$MSG_MENU_INSTALL_TARGET_EXISTING_KEY" ]] && target_label="$MSG_MENU_INSTALL_TARGET_EXISTING"
+    confirm "$MSG_MENU_INSTALL_APP_TITLE" "$MSG_MENU_INSTALL_CONFIRM_TEXT
+
+  App:    $app
+  Target: $target_label" || return
+
+    # Stap 5: install-app.sh zoeken + uitvoeren
+    local install_script
+    if [[ -f "$SCRIPT_DIR/install-app.sh" ]]; then
+        install_script="$SCRIPT_DIR/install-app.sh"
+    elif [[ -f "/root/scripts/install-app.sh" ]]; then
+        install_script="/root/scripts/install-app.sh"
+    else
+        msg_info "$MSG_COMMON_ERROR" "$MSG_MENU_INSTALL_APP_SCRIPT_NOT_FOUND"
+        return
+    fi
+
+    clear
+    show_banner
+    echo -e "${BLUE}$MSG_MENU_INSTALL_CREATING${NC}"
+    echo ""
+    if bash "$install_script" "${args[@]}"; then
+        echo ""
+        echo -e "${GREEN}$MSG_COMMON_PRESS_ENTER${NC}"
+    else
+        echo ""
+        echo -e "${RED}$MSG_MENU_ERROR_OCCURRED${NC}"
+    fi
+    read -r
+}
+
 main_menu() {
     while true; do
         local choice
         choice=$(menu_select "$MSG_MENU_MAIN_TITLE" "$MSG_MENU_MAIN_PROMPT" 24 \
             "$MSG_MENU_MAIN_CREATE_KEY"       "$MSG_MENU_MAIN_CREATE" \
             "$MSG_MENU_MAIN_CREATE_LXC_KEY"   "$MSG_MENU_MAIN_CREATE_LXC" \
+            "$MSG_MENU_MAIN_INSTALL_APP_KEY"  "$MSG_MENU_MAIN_INSTALL_APP" \
             "$MSG_MENU_MAIN_TEMPLATE_KEY"     "$MSG_MENU_MAIN_TEMPLATE" \
             "$MSG_MENU_MAIN_LIST_KEY"         "$MSG_MENU_MAIN_LIST" \
             "$MSG_MENU_MAIN_DELETE_KEY"       "$MSG_MENU_MAIN_DELETE" \
@@ -904,6 +987,7 @@ main_menu() {
         case "$choice" in
             "$MSG_MENU_MAIN_CREATE_KEY")       create_vm_flow ;;
             "$MSG_MENU_MAIN_CREATE_LXC_KEY")   create_lxc_flow ;;
+            "$MSG_MENU_MAIN_INSTALL_APP_KEY")  install_app_flow ;;
             "$MSG_MENU_MAIN_TEMPLATE_KEY")     create_template_menu ;;
             "$MSG_MENU_MAIN_LIST_KEY")         show_vm_list ;;
             "$MSG_MENU_MAIN_DELETE_KEY")       delete_vm_menu ;;
