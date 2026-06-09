@@ -16,6 +16,35 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
+# ── Whiptail/newt theme (high-contrast dark) ──
+# Applies to every whiptail dialog in the toolkit. Overridable: if the user
+# already exports NEWT_COLORS, we respect it.
+if [[ -z "${NEWT_COLORS:-}" ]]; then
+    export NEWT_COLORS='
+root=,black
+window=brightwhite,black
+border=brightcyan,black
+shadow=,black
+title=brightgreen,black
+button=black,brightgreen
+compactbutton=brightwhite,black
+listbox=brightwhite,black
+actlistbox=black,brightgreen
+sellistbox=brightcyan,black
+actsellistbox=black,brightgreen
+textbox=brightwhite,black
+acttextbox=black,brightcyan
+entry=brightwhite,black
+disentry=gray,black
+checkbox=brightwhite,black
+actcheckbox=black,brightcyan
+emptyscale=,gray
+fullscale=,brightgreen
+helpline=brightwhite,black
+roottext=brightwhite,black
+'
+fi
+
 # ── Language / Taal ─────────────────────────────
 _SCRIPT_DIR_COMMON="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "$_SCRIPT_DIR_COMMON/config.sh" ]]; then
