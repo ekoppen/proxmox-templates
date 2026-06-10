@@ -94,6 +94,13 @@ jobs:
           echo ""
           echo "✓ Alle scripts passeren shellcheck"
 
+      - name: Unit tests
+        run: |
+          echo "=== Running unit tests ==="
+          # ubuntu-latest ships bash 5 + openssl, which these tests require.
+          bash tests/test-render-env.sh
+          bash tests/test-apps-registry.sh
+
       - name: Security check - geen secrets in configs
         run: |
           echo "=== Security scan ==="
