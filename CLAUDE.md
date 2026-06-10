@@ -24,7 +24,9 @@ Proxmox VM automation toolkit. Creates cloud-init based VMs from templates on Pr
 │   ├── create-template.sh  # Debian cloud template (supports --version 12|13)
 │   ├── create-vm.sh        # Create VM from template
 │   ├── menu.sh             # Interactive whiptail menu (pve-menu)
-│   └── ...                 # Other VM management scripts
+│   ├── install-app.sh      # Installs an app (Docker Compose) into a fresh/existing LXC
+│   ├── ...                 # Other VM management scripts
+│   └── apps/               # App registry assets: _render-env.sh + <app>.hook.sh
 └── snippets/             # Cloud-init YAML configs per VM type
 ```
 
@@ -34,6 +36,7 @@ Proxmox VM automation toolkit. Creates cloud-init based VMs from templates on Pr
 - **Type registry:** New VM types go in `defaults.sh` via `register_type()` + a matching snippet YAML.
 - **UI:** Interactive menus use whiptail via helpers in `common.sh` (`menu_select`, `radio_select`, `confirm`, `input_box`).
 - **Scripts run on Proxmox as root.** Installed to `/root/scripts/`, libs to `/root/lib/`, snippets to `/var/lib/vz/snippets/`.
+- **App installers:** New installable apps go in `lib/apps.sh` via `register_app()` + `APP_GEN`/`APP_PROMPT`, with an optional `scripts/apps/<key>.hook.sh`. The engine (`scripts/install-app.sh`) clones on the host via its GitHub SSH key, pushes into the LXC, renders `.env` inside the container, and runs `docker compose up`.
 - **No external dependencies** beyond what Proxmox provides (qm, wget, whiptail, etc).
 
 ## Development notes

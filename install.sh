@@ -71,6 +71,13 @@ if [[ -d "$SCRIPT_DIR/scripts/lxc-post-install" ]]; then
     chmod +x "$INSTALL_DIR/lxc-post-install/"*.sh
 fi
 
+# App install scripts (incl. _render-env.sh + hooks)
+if [[ -d "$SCRIPT_DIR/scripts/apps" ]]; then
+    mkdir -p "$INSTALL_DIR/apps"
+    cp "$SCRIPT_DIR/scripts/apps/"*.sh "$INSTALL_DIR/apps/"
+    chmod +x "$INSTALL_DIR/apps/"*.sh
+fi
+
 # Quick-create symlinks aanmaken
 ln -sf "$INSTALL_DIR/quick-create.sh" "$INSTALL_DIR/quick-docker.sh"
 ln -sf "$INSTALL_DIR/quick-create.sh" "$INSTALL_DIR/quick-webserver.sh"

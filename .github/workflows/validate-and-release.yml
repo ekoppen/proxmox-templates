@@ -47,7 +47,7 @@ jobs:
         run: |
           echo "=== Validating shell scripts ==="
           ERRORS=0
-          for file in scripts/*.sh lib/*.sh install.sh setup.sh; do
+          for file in scripts/*.sh scripts/apps/*.sh scripts/lxc-post-install/*.sh lib/*.sh install.sh setup.sh; do
             if [[ -f "$file" ]]; then
               echo -n "  Checking $file... "
               if bash -n "$file" 2>/dev/null; then
@@ -73,7 +73,7 @@ jobs:
           apt-get update -qq && apt-get install -y -qq shellcheck > /dev/null
           echo "=== Running shellcheck ==="
           ERRORS=0
-          for file in scripts/*.sh lib/*.sh install.sh setup.sh; do
+          for file in scripts/*.sh scripts/apps/*.sh scripts/lxc-post-install/*.sh lib/*.sh install.sh setup.sh; do
             if [[ -f "$file" ]]; then
               echo -n "  Checking $file... "
               if shellcheck -x -s bash -e SC1091,SC2016 "$file" 2>/dev/null; then

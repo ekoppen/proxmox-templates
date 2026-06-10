@@ -178,6 +178,31 @@ bash setup.sh --ssh-key "ssh-ed25519 AAAA..." --ssh-key "ssh-rsa AAAA..."
 
 When using `--start`, the script waits for the service to become reachable after the VM boots. For example, a docker VM waits for Portainer on port 9443. This gives you confidence the VM is fully ready.
 
+## Installing apps (catalogic / listener / retrohead)
+
+`pve-menu` → **Install App** installs one of the doorkoppen apps as a Docker
+Compose stack, into a new Docker LXC or an existing container.
+
+How it works:
+- The Proxmox host clones the (private) repo using **its own GitHub-authorized
+  SSH key** — ensure `ssh -T git@github.com` succeeds on the host first.
+- Source is pushed into the LXC; a `.env` is generated with strong random
+  secrets, and you're prompted only for values that can't be generated
+  (API keys, cross-app URLs).
+- The stack is built and started with `docker compose up -d`.
+
+CLI equivalent:
+
+    install-app.sh catalogic --create
+    install-app.sh listener --ctid 205 --set YOUTUBE_API_KEY=... --set SPOTIFY_CLIENT_ID=... --set SPOTIFY_CLIENT_SECRET=...
+    install-app.sh retrohead --check     # print resolved config, no changes
+
+Re-running against an existing container updates the app (git pull + rebuild)
+and never overwrites the existing `.env` or data volumes.
+
+Add a new app by editing `lib/apps.sh` (`register_app` + `APP_GEN`/`APP_PROMPT`)
+and optionally adding `scripts/apps/<key>.hook.sh`.
+
 ## Structure
 
 ```
