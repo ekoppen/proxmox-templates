@@ -11,6 +11,11 @@
 #   Klaar! De app verschijnt automatisch in het "Install App" menu.
 # ============================================
 
+# These associative arrays are the registry's public API: they are populated
+# here and read by scripts/install-app.sh and scripts/menu.sh, so shellcheck's
+# "appears unused" (SC2034) is a false positive for this file.
+# shellcheck disable=SC2034
+
 declare -A APP_LABELS
 declare -A APP_DESC
 declare -A APP_REPO

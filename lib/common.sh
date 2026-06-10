@@ -55,8 +55,10 @@ fi
 LANG_CHOICE="${LANG_CHOICE:-en}"
 
 if [[ -f "$_SCRIPT_DIR_COMMON/lang/${LANG_CHOICE}.sh" ]]; then
+    # shellcheck source=/dev/null
     source "$_SCRIPT_DIR_COMMON/lang/${LANG_CHOICE}.sh"
 elif [[ -f "/root/lib/lang/${LANG_CHOICE}.sh" ]]; then
+    # shellcheck source=/dev/null
     source "/root/lib/lang/${LANG_CHOICE}.sh"
 fi
 

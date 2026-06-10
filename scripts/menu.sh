@@ -776,6 +776,7 @@ pve_update_menu() {
     echo "$UPGRADABLE"
     echo ""
 
+    # shellcheck disable=SC2034  # referenced indirectly via MSG_MENU_PVE_PACKAGES_COUNT
     UPGRADE_COUNT=$(echo "$UPGRADABLE" | wc -l | tr -d ' ')
     echo -e "${BLUE}$MSG_MENU_PVE_PACKAGES_COUNT${NC}"
     echo ""
