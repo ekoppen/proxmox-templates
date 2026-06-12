@@ -20,28 +20,32 @@ NC='\033[0m'
 # Applies to every whiptail dialog in the toolkit. Overridable: if the user
 # already exports NEWT_COLORS, we respect it.
 if [[ -z "${NEWT_COLORS:-}" ]]; then
+    # NB: newt kent alleen deze kleurnamen: black, blue, green, cyan, red,
+    # magenta, brown, lightgray, gray, brightblue, brightgreen, brightcyan,
+    # brightred, brightmagenta, yellow, white. ("brightwhite" bestaat niet;
+    # een ongeldige naam laat newt terugvallen op zijn default voor die entry.)
     export NEWT_COLORS='
-root=,black
-window=brightwhite,black
+root=white,black
+window=white,black
 border=brightcyan,black
-shadow=,black
+shadow=black,black
 title=brightgreen,black
 button=black,brightgreen
-compactbutton=brightwhite,black
-listbox=brightwhite,black
+compactbutton=white,black
+listbox=white,black
 actlistbox=black,brightgreen
 sellistbox=brightcyan,black
 actsellistbox=black,brightgreen
-textbox=brightwhite,black
+textbox=white,black
 acttextbox=black,brightcyan
-entry=brightwhite,black
+entry=white,black
 disentry=gray,black
-checkbox=brightwhite,black
+checkbox=white,black
 actcheckbox=black,brightcyan
-emptyscale=,gray
-fullscale=,brightgreen
-helpline=brightwhite,black
-roottext=brightwhite,black
+emptyscale=white,gray
+fullscale=black,brightgreen
+helpline=white,black
+roottext=white,black
 '
 fi
 
